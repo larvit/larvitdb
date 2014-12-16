@@ -24,7 +24,7 @@
 		"url": "https://github.com/larvit/larvitdb",
 		"type": "git"
 	},
-	"version": "0.0.1beta",
+	"version": "0.0.2beta",
 	"readmeFilename": "README.md",
 	"license": "MIT"
 }
