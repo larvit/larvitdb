@@ -1,0 +1,30 @@
+{
+	"author": {
+		"name": "Mikael 'Lilleman' Göransson",
+		"email": "lilleman@larvit.se",
+		"url": "http://github.com/larvit/larvitdb"
+	},
+	"private": true,
+	"contributors": [],
+	"dependencies": {
+		"mysql": "x",
+		"path": "x"
+	},
+	"description": "DB wrapper module for node.js",
+	"devDependencies": {},
+	"keywords": [
+		"db",
+		"database",
+		"wrapper",
+		"mysql",
+		"mariadb"
+	],
+	"main": "larvitdb.js",
+	"name": "larvitdb",
+	"repository": {
+		"url": "https://github.com/larvit/larvitdb",
+		"type": "git"
+	},
+	"version": "0.0.1beta",
+	"readmeFilename": "README.md"
+}
