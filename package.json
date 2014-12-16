@@ -26,5 +26,6 @@
 		"type": "git"
 	},
 	"version": "0.0.1beta",
-	"readmeFilename": "README.md"
+	"readmeFilename": "README.md",
+	"license": "MIT"
 }
