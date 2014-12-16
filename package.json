@@ -4,7 +4,6 @@
 		"email": "lilleman@larvit.se",
 		"url": "http://github.com/larvit/larvitdb"
 	},
-	"private": true,
 	"contributors": [],
 	"dependencies": {
 		"mysql": "x",
