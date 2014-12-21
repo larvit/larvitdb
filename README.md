@@ -3,6 +3,8 @@
 DB pool wrapper for node.js
 This module is used to share a mysql/mariadb pool of connections between modules, classes, files etc.
 
+It also logs with [winston](https://www.npmjs.com/package/winston) if there is a database error, so you do not need to fetch the database error manually each time.
+
 ## Installation
     npm i larvitdb
 

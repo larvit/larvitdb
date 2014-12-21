@@ -7,7 +7,8 @@
 	"contributors": [],
 	"dependencies": {
 		"mysql": "x",
-		"path": "x"
+		"path": "x",
+		"winston": "x"
 	},
 	"description": "DB wrapper module for node.js",
 	"devDependencies": {},
@@ -24,7 +25,7 @@
 		"url": "https://github.com/larvit/larvitdb",
 		"type": "git"
 	},
-	"version": "0.0.2beta",
+	"version": "0.0.3beta",
 	"readmeFilename": "README.md",
 	"license": "MIT"
 }
