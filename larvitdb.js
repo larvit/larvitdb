@@ -1,3 +1,4 @@
+/*jslint node: true */
 'use strict';
 
 var path    = require('path'),
@@ -41,4 +42,4 @@ exports.query = function query(sql, dbFields, callback) {
 			callback(null, rows, rowFields);
 		});
 	}
-}
+};
