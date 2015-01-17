@@ -13,7 +13,7 @@ exports.getConnection = pool.getConnection;
 
 // Wrap the query function to log database errors
 exports.query = function query(sql, dbFields, callback) {
-	if (typeof(dbFields) == 'function') {
+	if (typeof dbFields === 'function') {
 		callback = dbFields;
 
 		pool.query(sql, function(err, rows, rowFields) {
@@ -21,7 +21,7 @@ exports.query = function query(sql, dbFields, callback) {
 			if (err) {
 				err.sql    = sql;
 				err.fields = dbFields;
-				log.error(err);
+				log.error(err.message, err);
 				callback(err);
 				return;
 			}
@@ -34,7 +34,7 @@ exports.query = function query(sql, dbFields, callback) {
 			if (err) {
 				err.sql    = sql;
 				err.fields = dbFields;
-				log.error(err);
+				log.error(err.message, err);
 				callback(err);
 				return;
 			}

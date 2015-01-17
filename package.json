@@ -25,7 +25,15 @@
 		"url": "https://github.com/larvit/larvitdb",
 		"type": "git"
 	},
-	"version": "0.1.0",
-	"readmeFilename": "README.md",
-	"license": "MIT"
+	"version": "0.1.1",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/larvit/larvitdb/issues"
+	},
+	"maintainers": [
+		{
+			"name": "lilleman",
+			"email": "lilleman@larvit.se"
+		}
+	],
 }
