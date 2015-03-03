@@ -1,17 +1,29 @@
 'use strict';
 
-var path    = require('path'),
-    appPath = path.dirname(require.main.filename),
-    mysql   = require('mysql'),
-    dbConf  = require(appPath + '/config/db.json'),
-    log     = require('winston'),
-    pool    = mysql.createPool(dbConf);
+var mysql = require('mysql'),
+    log   = require('winston'),
+    conf,
+    pool;
 
-// Expose getConnection()
-exports.getConnection = pool.getConnection;
+exports.setup = function(thisConf) {
+	conf = thisConf;
+	pool = mysql.createPool(conf);
+
+	// Expose getConnection()
+	exports.getConnection = pool.getConnection;
+};
 
 // Wrap the query function to log database errors
 exports.query = function query(sql, dbFields, callback) {
+	var err;
+
+	if (pool === undefined) {
+		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool.');
+		log.error(err.message);
+		callback(err);
+		return;
+	}
+
 	if (typeof dbFields === 'function') {
 		callback = dbFields;
 
@@ -19,7 +31,6 @@ exports.query = function query(sql, dbFields, callback) {
 			// We log and handle plain database errors in a unified matter
 			if (err) {
 				err.sql    = sql;
-				err.fields = dbFields;
 				log.error(err.message, err);
 				callback(err);
 				return;
