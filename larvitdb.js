@@ -17,6 +17,10 @@ exports.setup = function(thisConf) {
 exports.query = function query(sql, dbFields, callback) {
 	var err;
 
+	if (typeof dbFields === 'function') {
+		callback = dbFields;
+	}
+
 	if (pool === undefined) {
 		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool.');
 		log.error(err.message);
@@ -25,8 +29,6 @@ exports.query = function query(sql, dbFields, callback) {
 	}
 
 	if (typeof dbFields === 'function') {
-		callback = dbFields;
-
 		pool.query(sql, function(err, rows, rowFields) {
 			// We log and handle plain database errors in a unified matter
 			if (err) {
