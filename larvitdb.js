@@ -17,10 +17,6 @@ exports.setup = function(thisConf) {
 exports.query = function query(sql, dbFields, callback) {
 	var err;
 
-	if (typeof dbFields === 'function') {
-		callback = dbFields;
-	}
-
 	if (pool === undefined) {
 		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool.');
 		log.error(err.message);
@@ -29,10 +25,14 @@ exports.query = function query(sql, dbFields, callback) {
 	}
 
 	if (typeof dbFields === 'function') {
+		callback = dbFields;
+
+		log.debug('larvitdb: Running SQL: "' + sql + '"');
+
 		pool.query(sql, function(err, rows, rowFields) {
 			// We log and handle plain database errors in a unified matter
 			if (err) {
-				err.sql    = sql;
+				err.sql = sql;
 				log.error(err.message, err);
 				callback(err);
 				return;
@@ -41,6 +41,8 @@ exports.query = function query(sql, dbFields, callback) {
 			callback(null, rows, rowFields);
 		});
 	} else {
+		log.debug('larvitdb: Running SQL: "' + sql + '" with dbFields = ' + JSON.stringify(dbFields));
+
 		pool.query(sql, dbFields, function(err, rows, rowFields) {
 			// We log and handle plain database errors in a unified matter
 			if (err) {
