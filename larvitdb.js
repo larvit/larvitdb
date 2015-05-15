@@ -11,6 +11,15 @@ exports.setup = function(thisConf) {
 
 	// Expose getConnection()
 	exports.getConnection = pool.getConnection;
+
+	// Make connection test to database
+	exports.query('SELECT 1', function(err, rows) {
+		if (err || rows.length === 0) {
+			log.error('larvitdb: setup() - Database connection test failed!');
+		} else {
+			log.info('larvitdb: setup() - Database connection test succeeded.');
+		}
+	});
 };
 
 // Wrap the query function to log database errors
