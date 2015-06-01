@@ -25,6 +25,10 @@ exports.setup = function(thisConf) {
 exports.query = function query(sql, dbFields, callback) {
 	var err;
 
+	if (typeof callback !== 'function') {
+		callback = function(){};
+	}
+
 	if (exports.pool === undefined) {
 		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool.');
 		log.error(err.message);
