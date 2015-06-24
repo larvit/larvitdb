@@ -4,7 +4,7 @@ var mysql = require('mysql'),
     log   = require('winston'),
     conf;
 
-exports.setup = function(thisConf) {
+exports.setup = function(thisConf, callback) {
 	conf         = thisConf;
 	exports.pool = mysql.createPool(conf);
 
@@ -18,6 +18,7 @@ exports.setup = function(thisConf) {
 		} else {
 			log.info('larvitdb: setup() - Database connection test succeeded.');
 		}
+		callback(err);
 	});
 };
 
