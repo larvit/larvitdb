@@ -18,7 +18,10 @@ exports.setup = function(thisConf, callback) {
 		} else {
 			log.info('larvitdb: setup() - Database connection test succeeded.');
 		}
-		callback(err);
+
+		if (typeof callback === 'function') {
+			callback(err);
+		}
 	});
 };
 
