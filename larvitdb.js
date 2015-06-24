@@ -34,7 +34,7 @@ exports.query = function query(sql, dbFields, callback) {
 	}
 
 	if (exports.pool === undefined) {
-		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool.');
+		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool. sql: ' + sql + ' dbFields: ' + JSON.stringify(dbFields));
 		log.error(err.message);
 		callback(err);
 		return;
