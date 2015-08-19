@@ -34,7 +34,7 @@ exports.query = function query(sql, dbFields, callback) {
 	}
 
 	if (exports.pool === undefined) {
-		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool. sql: ' + sql + ' dbFields: ' + JSON.stringify(dbFields));
+		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 		log.error(err.message);
 		callback(err);
 		return;
@@ -42,34 +42,21 @@ exports.query = function query(sql, dbFields, callback) {
 
 	if (typeof dbFields === 'function') {
 		callback = dbFields;
-
-		log.debug('larvitdb: Running SQL: "' + sql + '"');
-
-		exports.pool.query(sql, function(err, rows, rowFields) {
-			// We log and handle plain database errors in a unified matter
-			if (err) {
-				err.sql = sql;
-				log.error(err.message, err);
-				callback(err);
-				return;
-			}
-
-			callback(null, rows, rowFields);
-		});
-	} else {
-		log.debug('larvitdb: Running SQL: "' + sql + '" with dbFields = ' + JSON.stringify(dbFields));
-
-		exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
-			// We log and handle plain database errors in a unified matter
-			if (err) {
-				err.sql    = sql;
-				err.fields = dbFields;
-				log.error(err.message, err);
-				callback(err);
-				return;
-			}
-
-			callback(null, rows, rowFields);
-		});
+		dbFields = [];
 	}
+
+	log.debug('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
+
+	exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
+		// We log and handle plain database errors in a unified matter
+		if (err) {
+			err.sql    = sql;
+			err.fields = dbFields;
+			log.error('larvitdb: Database error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+			callback(err);
+			return;
+		}
+
+		callback(null, rows, rowFields);
+	});
 };
