@@ -8,6 +8,16 @@ exports.setup = function(thisConf, callback) {
 	conf         = thisConf;
 	exports.pool = mysql.createPool(conf);
 
+	// Default to 3 retries on recoverable errors
+	if (conf.retries === undefined) {
+		conf.retries = 3;
+	}
+
+	// Default to not setting any recoverable errors
+	if (conf.recoverableErrors === undefined) {
+		conf.recoverableErrors = [];
+	}
+
 	// Expose getConnection()
 	exports.getConnection = exports.pool.getConnection;
 
@@ -26,8 +36,19 @@ exports.setup = function(thisConf, callback) {
 };
 
 // Wrap the query function to log database errors
-exports.query = function query(sql, dbFields, callback) {
+exports.query = function query(sql, dbFields, retryNr, callback) {
 	var err;
+
+	if (typeof retryNr === 'function') {
+		callback = retryNr;
+		retryNr  = 0;
+	}
+
+	if (typeof dbFields === 'function') {
+		callback = dbFields;
+		dbFields = [];
+		retryNr  = 0;
+	}
 
 	if (typeof callback !== 'function') {
 		callback = function(){};
@@ -40,11 +61,6 @@ exports.query = function query(sql, dbFields, callback) {
 		return;
 	}
 
-	if (typeof dbFields === 'function') {
-		callback = dbFields;
-		dbFields = [];
-	}
-
 	log.debug('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
 
 	exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
@@ -52,6 +68,23 @@ exports.query = function query(sql, dbFields, callback) {
 		if (err) {
 			err.sql    = sql;
 			err.fields = dbFields;
+
+			// If this is a coverable error, simply try again.
+			if (conf.recoverableErrors.indexOf(err.code) !== - 1) {
+				retryNr ++;
+				if (retryNr <= conf.retries) {
+					log.warn('larvitdb: Retrying database recoverable error: ' + err.message + ' retryNr: ' + retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+					setTimeout(function() {
+						exports.query(sql, dbFields, retryNr, callback);
+					}, 50);
+					return;
+				}
+
+				log.error('larvitdb: Exhausted retries (' + retrnyNr + ') for database recoverable error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+				callback(err);
+				return;
+			}
+
 			log.error('larvitdb: Database error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 			callback(err);
 			return;

@@ -16,19 +16,17 @@ Make this in your main application file:
 
     var db = require('larvitdb');
 
-    db.setup(
-    	{
-    		"connectionLimit":   10,
-    		"socketPath":        "/var/run/mysqld/mysqld.sock",
-    		"user":              "foo",
-    		"password":          "bar",
-    		"charset":           "utf8_general_ci",
-    		"supportBigNumbers": true,
-    		"database":          "my_database_name"
-    	}
-    );
+    db.setup({
+    	"connectionLimit":   10,
+    	"socketPath":        "/var/run/mysqld/mysqld.sock",
+    	"user":              "foo",
+    	"password":          "bar",
+    	"charset":           "utf8_general_ci",
+    	"supportBigNumbers": true,
+    	"database":          "my_database_name"
+    });
 
-See a full list of possible options [here](https://github.com/felixge/node-mysql/#connection-options). Then you can just require the module in your other files for usage, like this:
+See list of native options [here](https://github.com/felixge/node-mysql/#connection-options). Then you can just require the module in your other files for usage, like this:
 
 A direct query
 
@@ -61,3 +59,26 @@ You dont need to get a connection to escape though. You can do like this:
     db.query('SELECT * FROM users WHERE id = ?', [userId], function(err, results) {
       // ...
     });
+
+## Advanced configuration - recoverable errors
+
+Sometimes recoverable errors happend in the database. One such example is deadlocks in a cluster. Here we'll provide an example of how to make the database layer retry a query 5 times if a deadlock happends, before giving up.
+
+    var db = require('larvitdb');
+
+    db.setup({
+    	"connectionLimit":   10,
+    	"socketPath":        "/var/run/mysqld/mysqld.sock",
+    	"user":              "foo",
+    	"password":          "bar",
+    	"charset":           "utf8_general_ci",
+    	"supportBigNumbers": true,
+    	"database":          "my_database_name",
+    	"retries":           5, // Defaults to 3 if omitted
+    	"recoverableErrors": ["ER_LOCK_DEADLOCK"] // What error codes to retry
+    });
+
+    // If this query fails with a deadlock, it will be retried up to 5 times.
+    // On each retry a warning will be logged with winston
+    // If the 5th retry fails, an error will be logged and the callback will be called with an error
+    db.query('DELETE FROM tmpTable LIMIT 10');
