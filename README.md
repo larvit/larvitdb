@@ -41,7 +41,7 @@ Or, if a connection is needed:
 
     var db = require('larvitdb');
 
-    db.getConnection(function(err, dbCon) {
+    db.pool.getConnection(function(err, dbCon) {
     	var sql = 'SELECT * FROM users WHERE username LIKE ' +
     	    	dbCon.escape(postData);
 

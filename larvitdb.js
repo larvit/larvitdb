@@ -18,9 +18,6 @@ exports.setup = function(thisConf, callback) {
 		conf.recoverableErrors = [];
 	}
 
-	// Expose getConnection()
-	exports.getConnection = exports.pool.getConnection;
-
 	// Make connection test to database
 	exports.query('SELECT 1', function(err, rows) {
 		if (err || rows.length === 0) {
