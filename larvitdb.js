@@ -58,7 +58,12 @@ exports.query = function query(sql, dbFields, retryNr, callback) {
 		return;
 	}
 
-	log.debug('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
+	// Log SELECTs as debug, but all others as verbose (since that mostly is INSERT, REPLACE etc that will aler the database)
+	if (sql.substring(0, 6).toLowerCase() === 'select') {
+		log.debug('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
+	} else {
+		log.verbose('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
+	}
 
 	exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
 		// We log and handle plain database errors in a unified matter
