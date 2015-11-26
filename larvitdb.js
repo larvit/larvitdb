@@ -1,10 +1,22 @@
 'use strict';
 
-var mysql = require('mysql'),
-    log   = require('winston'),
+var events       = require('events'),
+    eventEmitter = new events.EventEmitter(),
+    dbSetup      = false,
+    mysql        = require('mysql'),
+    log          = require('winston'),
     conf;
 
-exports.setup = function(thisConf, callback) {
+exports.ready = function(cb) {
+	if (dbSetup) {
+		cb();
+		return;
+	}
+
+	eventEmitter.on('checked', cb);
+};
+
+exports.setup = function(thisConf, cb) {
 	conf         = thisConf;
 	exports.pool = mysql.createPool(conf);
 
@@ -26,35 +38,38 @@ exports.setup = function(thisConf, callback) {
 			log.info('larvitdb: setup() - Database connection test succeeded.');
 		}
 
-		if (typeof callback === 'function') {
-			callback(err);
+		dbSetup = true;
+		eventEmitter.emit('checked');
+
+		if (typeof cb === 'function') {
+			cb(err);
 		}
 	});
 };
 
 // Wrap the query function to log database errors
-exports.query = function query(sql, dbFields, retryNr, callback) {
+exports.query = function query(sql, dbFields, retryNr, cb) {
 	var err;
 
 	if (typeof retryNr === 'function') {
-		callback = retryNr;
+		cb = retryNr;
 		retryNr  = 0;
 	}
 
 	if (typeof dbFields === 'function') {
-		callback = dbFields;
+		cb = dbFields;
 		dbFields = [];
 		retryNr  = 0;
 	}
 
-	if (typeof callback !== 'function') {
-		callback = function(){};
+	if (typeof cb !== 'function') {
+		cb = function(){};
 	}
 
 	if (exports.pool === undefined) {
 		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 		log.error(err.message);
-		callback(err);
+		cb(err);
 		return;
 	}
 
@@ -77,21 +92,21 @@ exports.query = function query(sql, dbFields, retryNr, callback) {
 				if (retryNr <= conf.retries) {
 					log.warn('larvitdb: Retrying database recoverable error: ' + err.message + ' retryNr: ' + retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 					setTimeout(function() {
-						exports.query(sql, dbFields, retryNr, callback);
+						exports.query(sql, dbFields, retryNr, cb);
 					}, 50);
 					return;
 				}
 
 				log.error('larvitdb: Exhausted retries (' + retrnyNr + ') for database recoverable error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-				callback(err);
+				cb(err);
 				return;
 			}
 
 			log.error('larvitdb: Database error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-			callback(err);
+			cb(err);
 			return;
 		}
 
-		callback(null, rows, rowFields);
+		cb(null, rows, rowFields);
 	});
 };
