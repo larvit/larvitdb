@@ -6,8 +6,8 @@
 	},
 	"contributors": [],
 	"dependencies": {
-		"mysql": "latest",
-		"winston": "latest"
+		"mysql": "~2.9",
+		"winston": "~2.1"
 	},
 	"description": "DB wrapper module for node.js",
 	"devDependencies": {},
@@ -24,7 +24,7 @@
 		"url": "https://github.com/larvit/larvitdb",
 		"type": "git"
 	},
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"license": "MIT",
 	"bugs": {
 		"url": "https://github.com/larvit/larvitdb/issues"
