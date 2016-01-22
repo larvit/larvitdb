@@ -7,7 +7,7 @@ var events       = require('events'),
     log          = require('winston'),
     conf;
 
-exports.ready = function(cb) {
+function ready(cb) {
 	if (dbSetup) {
 		cb();
 		return;
@@ -16,7 +16,7 @@ exports.ready = function(cb) {
 	eventEmitter.on('checked', cb);
 };
 
-exports.setup = function(thisConf, cb) {
+function setup(thisConf, cb) {
 	conf         = thisConf;
 	exports.pool = mysql.createPool(conf);
 
@@ -31,7 +31,7 @@ exports.setup = function(thisConf, cb) {
 	}
 
 	// Make connection test to database
-	exports.query('SELECT 1', function(err, rows) {
+	exports.pool.query('SELECT 1', function(err, rows) {
 		if (err || rows.length === 0) {
 			log.error('larvitdb: setup() - Database connection test failed!');
 		} else {
@@ -48,65 +48,71 @@ exports.setup = function(thisConf, cb) {
 };
 
 // Wrap the query function to log database errors
-exports.query = function query(sql, dbFields, retryNr, cb) {
-	var err;
+function query(sql, dbFields, retryNr, cb) {
+	ready(function() {
+		var err;
 
-	if (typeof retryNr === 'function') {
-		cb = retryNr;
-		retryNr  = 0;
-	}
+		if (typeof retryNr === 'function') {
+			cb = retryNr;
+			retryNr  = 0;
+		}
 
-	if (typeof dbFields === 'function') {
-		cb = dbFields;
-		dbFields = [];
-		retryNr  = 0;
-	}
+		if (typeof dbFields === 'function') {
+			cb = dbFields;
+			dbFields = [];
+			retryNr  = 0;
+		}
 
-	if (typeof cb !== 'function') {
-		cb = function(){};
-	}
+		if (typeof cb !== 'function') {
+			cb = function(){};
+		}
 
-	if (exports.pool === undefined) {
-		err = new Error('larvitdb: No pool configured. setup() must be ran with config parameters to configure a pool. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-		log.error(err.message);
-		cb(err);
-		return;
-	}
-
-	// Log SELECTs as debug, but all others as verbose (since that mostly is INSERT, REPLACE etc that will aler the database)
-	if (sql.substring(0, 6).toLowerCase() === 'select') {
-		log.debug('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
-	} else {
-		log.verbose('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
-	}
-
-	exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
-		// We log and handle plain database errors in a unified matter
-		if (err) {
-			err.sql    = sql;
-			err.fields = dbFields;
-
-			// If this is a coverable error, simply try again.
-			if (conf.recoverableErrors.indexOf(err.code) !== - 1) {
-				retryNr ++;
-				if (retryNr <= conf.retries) {
-					log.warn('larvitdb: Retrying database recoverable error: ' + err.message + ' retryNr: ' + retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-					setTimeout(function() {
-						exports.query(sql, dbFields, retryNr, cb);
-					}, 50);
-					return;
-				}
-
-				log.error('larvitdb: Exhausted retries (' + retrnyNr + ') for database recoverable error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-				cb(err);
-				return;
-			}
-
-			log.error('larvitdb: Database error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+		if (exports.pool === undefined) {
+			err = new Error('larvitdb: No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+			log.error(err.message);
 			cb(err);
 			return;
 		}
 
-		cb(null, rows, rowFields);
+		// Log SELECTs as debug, but all others as verbose (since that mostly is INSERT, REPLACE etc that will aler the database)
+		if (sql.substring(0, 6).toLowerCase() === 'select') {
+			log.debug('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
+		} else {
+			log.verbose('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
+		}
+
+		exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
+			// We log and handle plain database errors in a unified matter
+			if (err) {
+				err.sql    = sql;
+				err.fields = dbFields;
+
+				// If this is a coverable error, simply try again.
+				if (conf.recoverableErrors.indexOf(err.code) !== - 1) {
+					retryNr ++;
+					if (retryNr <= conf.retries) {
+						log.warn('larvitdb: Retrying database recoverable error: ' + err.message + ' retryNr: ' + retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+						setTimeout(function() {
+							query(sql, dbFields, retryNr, cb);
+						}, 50);
+						return;
+					}
+
+					log.error('larvitdb: Exhausted retries (' + retrnyNr + ') for database recoverable error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+					cb(err);
+					return;
+				}
+
+				log.error('larvitdb: Database error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+				cb(err);
+				return;
+			}
+
+			cb(null, rows, rowFields);
+		});
 	});
 };
+
+exports.ready = ready;
+exports.setup = setup;
+exports.query = query;
