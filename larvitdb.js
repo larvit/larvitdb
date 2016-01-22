@@ -17,7 +17,7 @@ function ready(cb) {
 };
 
 function setup(thisConf, cb) {
-	conf         = thisConf;
+	exports.conf = conf = thisConf;
 	exports.pool = mysql.createPool(conf);
 
 	// Default to 3 retries on recoverable errors
