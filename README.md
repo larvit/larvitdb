@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/larvit/larvitdb.svg)](https://travis-ci.org/larvit/larvitdb)
+
 # larvitdb
 
 DB pool wrapper for node.js
