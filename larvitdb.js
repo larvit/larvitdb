@@ -1,64 +1,24 @@
 'use strict';
 
-var events       = require('events'),
-    eventEmitter = new events.EventEmitter(),
-    dbSetup      = false,
-    mysql        = require('mysql'),
-    log          = require('winston'),
+const events       = require('events'),
+      eventEmitter = new events.EventEmitter(),
+			async        = require('async'),
+      mysql        = require('mysql'),
+      log          = require('winston');
+
+let dbSetup = false,
     conf;
-
-function ready(cb) {
-	if (dbSetup) {
-		cb();
-		return;
-	}
-
-	eventEmitter.on('checked', cb);
-};
-
-function setup(thisConf, cb) {
-	exports.conf = conf = thisConf;
-	exports.pool = mysql.createPool(conf);
-
-	// Default to 3 retries on recoverable errors
-	if (conf.retries === undefined) {
-		conf.retries = 3;
-	}
-
-	// Default to not setting any recoverable errors
-	if (conf.recoverableErrors === undefined) {
-		conf.recoverableErrors = [];
-	}
-
-	// Make connection test to database
-	exports.pool.query('SELECT 1', function(err, rows) {
-		if (err || rows.length === 0) {
-			log.error('larvitdb: setup() - Database connection test failed!');
-		} else {
-			log.info('larvitdb: setup() - Database connection test succeeded.');
-		}
-
-		dbSetup = true;
-		eventEmitter.emit('checked');
-
-		if (typeof cb === 'function') {
-			cb(err);
-		}
-	});
-};
 
 // Wrap the query function to log database errors
 function query(sql, dbFields, retryNr, cb) {
 	ready(function() {
-		var err;
-
 		if (typeof retryNr === 'function') {
-			cb = retryNr;
-			retryNr  = 0;
+			cb      = retryNr;
+			retryNr = 0;
 		}
 
 		if (typeof dbFields === 'function') {
-			cb = dbFields;
+			cb       = dbFields;
 			dbFields = [];
 			retryNr  = 0;
 		}
@@ -68,7 +28,7 @@ function query(sql, dbFields, retryNr, cb) {
 		}
 
 		if (exports.pool === undefined) {
-			err = new Error('larvitdb: No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+			let err = new Error('larvitdb: No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 			log.error(err.message);
 			cb(err);
 			return;
@@ -113,6 +73,111 @@ function query(sql, dbFields, retryNr, cb) {
 	});
 };
 
-exports.ready = ready;
-exports.setup = setup;
-exports.query = query;
+function ready(cb) {
+	if (dbSetup) {
+		cb();
+		return;
+	}
+
+	eventEmitter.on('checked', cb);
+};
+
+function removeAllTables(cb) {
+	ready(function() {
+		exports.pool.getConnection(function(err, con) {
+			const tables = [],
+						tasks  = [];
+
+			if (err) {
+				log.error('larvitdb: removeAllTables() - Could not get a connection from the pool: ' + err.message);
+				cb(err);
+				return;
+			}
+
+			// Disalbe foreign key checks to be able to remove tables in any order
+			tasks.push(function(cb) {
+				con.query('SET FOREIGN_KEY_CHECKS=0;', cb);
+			});
+
+			// Gather table names
+			tasks.push(function(cb) {
+				con.query('SHOW TABLES', function(err, rows) {
+					if (err) {
+						log.error('larvitdb: removeAllTables() - Error when running "SHOW TABLES": ' + err.message);
+						cb(err);
+						return;
+					}
+
+					for (let i = 0; rows[i] !== undefined; i ++) {
+						tables.push(rows[i]['Tables_in_' + exports.conf.database]);
+					}
+
+					cb();
+				});
+			});
+
+			// Actually remove tables
+			tasks.push(function(cb) {
+				const sqlTasks = [];
+
+				for (let i = 0; tables[i] !== undefined; i ++) {
+					let tableName = tables[i];
+
+					sqlTasks.push(function(cb) {
+						con.query('DROP TABLE `' + tableName + '`;', cb);
+					});
+				}
+
+				async.parallel(sqlTasks, cb);
+			});
+
+			// Set foreign key checks back to normal
+			tasks.push(function(cb) {
+				con.query('SET FOREIGN_KEY_CHECKS=1;', cb);
+			});
+
+			tasks.push(function(cb) {
+				con.release();
+				cb();
+			});
+
+			async.series(tasks, cb);
+		});
+	});
+}
+
+function setup(thisConf, cb) {
+	exports.conf = conf = thisConf;
+	exports.pool = mysql.createPool(conf);
+
+	// Default to 3 retries on recoverable errors
+	if (conf.retries === undefined) {
+		conf.retries = 3;
+	}
+
+	// Default to not setting any recoverable errors
+	if (conf.recoverableErrors === undefined) {
+		conf.recoverableErrors = [];
+	}
+
+	// Make connection test to database
+	exports.pool.query('SELECT 1', function(err, rows) {
+		if (err || rows.length === 0) {
+			log.error('larvitdb: setup() - Database connection test failed!');
+		} else {
+			log.info('larvitdb: setup() - Database connection test succeeded.');
+		}
+
+		dbSetup = true;
+		eventEmitter.emit('checked');
+
+		if (typeof cb === 'function') {
+			cb(err);
+		}
+	});
+};
+
+exports.query           = query;
+exports.ready           = ready;
+exports.removeAllTables = removeAllTables;
+exports.setup           = setup;

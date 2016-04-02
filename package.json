@@ -6,6 +6,7 @@
   },
   "contributors": [],
   "dependencies": {
+    "async": "^1.5.2",
     "mysql": "^2.10.2",
     "winston": "^2.1.1"
   },
@@ -26,7 +27,7 @@
     "url": "https://github.com/larvit/larvitdb",
     "type": "git"
   },
-  "version": "0.4.4",
+  "version": "0.4.5",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/larvit/larvitdb/issues"
