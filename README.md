@@ -19,7 +19,7 @@ The module must first be required and then configured.
 Make this in your main application file:
 
 ```javascript
-var db = require('larvitdb');
+const db = require('larvitdb');
 
 db.setup({
 	"connectionLimit":   10,
@@ -37,7 +37,7 @@ See list of native options [here](https://github.com/felixge/node-mysql/#connect
 A direct query
 
 ```javascript
-var db = require('larvitdb');
+const db = require('larvitdb');
 
 db.query('SELECT 1 + 1 AS solution', function(err, rows, fields) {
 	console.log('dbmodel: The solution is: ', rows[0].solution);
@@ -47,23 +47,24 @@ db.query('SELECT 1 + 1 AS solution', function(err, rows, fields) {
 Or, if a connection is needed:
 
 ```javascript
-var db = require('larvitdb');
+const db = require('larvitdb');
 
 db.pool.getConnection(function(err, dbCon) {
-	var sql = 'SELECT * FROM users WHERE username LIKE ' +
-	    	dbCon.escape(postData);
+	const sql = 'SELECT * FROM users WHERE username LIKE ' + dbCon.escape(postData);
 
 	dbCon.query(sql, function(err, rows) {
 		dbCon.release(); // Always release your connection when the query is done
 
 		if (err)
 			throw err;
+	});
+});
 ```
 
 You dont need to get a connection to escape though. You can do like this:
 
 ```javascript
-var db = require('larvitdb');
+const db = require('larvitdb');
 
 db.query('SELECT * FROM users WHERE id = ?', [userId], function(err, results) {
   // ...
@@ -75,7 +76,7 @@ db.query('SELECT * FROM users WHERE id = ?', [userId], function(err, results) {
 Sometimes recoverable errors happend in the database. One such example is deadlocks in a cluster. Here we'll provide an example of how to make the database layer retry a query 5 times if a deadlock happends, before giving up.
 
 ```javascript
-var db = require('larvitdb');
+const db = require('larvitdb');
 
 db.setup({
 	"connectionLimit":   10,
@@ -93,4 +94,16 @@ db.setup({
 // On each retry a warning will be logged with winston
 // If the 5th retry fails, an error will be logged and the callback will be called with an error
 db.query('DELETE FROM tmpTable LIMIT 10');
+```
+
+## Custom functions
+
+### Remove all tables from current database
+
+This function will clean the current database from all tables.
+
+```javascript
+const db = require('larvitdb');
+
+db.removeAllTables();
 ```

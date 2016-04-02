@@ -54,7 +54,7 @@ before(function(done) {
 	log.verbose('DB config file: "' + confFile + '"');
 
 	fs.stat(confFile, function(err) {
-		const altConfFile = __dirname + '../config/' + confFile;
+		const altConfFile = __dirname + '/../config/' + confFile;
 
 		if (err) {
 			log.info('Failed to find config file "' + confFile + '", retrying with "' + altConfFile + '"');
