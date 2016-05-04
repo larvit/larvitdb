@@ -96,6 +96,25 @@ db.setup({
 db.query('DELETE FROM tmpTable LIMIT 10');
 ```
 
+## Advanced configuration - long running queries
+
+By default a warning is logged if a query runs longer than 10k ms (10 seconds). This number can be tweaked like this for 20 seconds:
+
+```javascript
+db.setup({
+	...
+	"longQueryTime": 20000
+});
+```
+
+or like this to disable the warnings:
+
+```javascript
+db.setup({
+	...
+	"longQueryTime": false
+});
+
 ## Custom functions
 
 ### Remove all tables from current database

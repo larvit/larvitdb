@@ -2,16 +2,19 @@
 
 const events       = require('events'),
       eventEmitter = new events.EventEmitter(),
-			async        = require('async'),
+      async        = require('async'),
+      utils        = require('larvitutils'),
       mysql        = require('mysql'),
       log          = require('winston');
 
 let dbSetup = false,
     conf;
 
-// Wrap the query function to log database errors
+// Wrap the query function to log database errors or slow running queries
 function query(sql, dbFields, retryNr, cb) {
 	ready(function() {
+		let startTime;
+
 		if (typeof retryNr === 'function') {
 			cb      = retryNr;
 			retryNr = 0;
@@ -34,14 +37,17 @@ function query(sql, dbFields, retryNr, cb) {
 			return;
 		}
 
-		// Log SELECTs as debug, but all others as verbose (since that mostly is INSERT, REPLACE etc that will aler the database)
-		if (sql.substring(0, 6).toLowerCase() === 'select') {
-			log.debug('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
-		} else {
-			log.verbose('larvitdb: Running SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
-		}
+		startTime = process.hrtime();
 
 		exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
+			const queryTime = utils.hrtimeToMs(startTime, 4);
+
+			if (conf.longQueryTime !== false && conf.longQueryTime < queryTime) {
+				log.warn('larvitdb: Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+			} else {
+				log.debug('larvitdb: Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+			}
+
 			// We log and handle plain database errors in a unified matter
 			if (err) {
 				err.sql    = sql;
@@ -158,6 +164,11 @@ function setup(thisConf, cb) {
 	// Default to not setting any recoverable errors
 	if (conf.recoverableErrors === undefined) {
 		conf.recoverableErrors = [];
+	}
+
+	// Default slow running queries to 10 seconds
+	if (conf.longQueryTime === undefined) {
+		conf.longQueryTime = 10000;
 	}
 
 	// Make connection test to database
