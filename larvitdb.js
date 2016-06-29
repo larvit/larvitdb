@@ -69,7 +69,7 @@ function query(sql, dbFields, retryNr, cb) {
 					return;
 				}
 
-				log.error('larvitdb: Database error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+				log.error('larvitdb: Database error msg: ' + err.message + ', code: "' + err.code + '" SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 				cb(err);
 				return;
 			}
@@ -161,9 +161,9 @@ function setup(thisConf, cb) {
 		conf.retries = 3;
 	}
 
-	// Default to not setting any recoverable errors
+	// Default to setting recoverable errors to lost connection
 	if (conf.recoverableErrors === undefined) {
-		conf.recoverableErrors = [];
+		conf.recoverableErrors = ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'];
 	}
 
 	// Default slow running queries to 10 seconds

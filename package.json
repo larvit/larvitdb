@@ -1,19 +1,26 @@
 {
-  "author": {
-    "name": "Mikael 'Lilleman' Göransson",
-    "email": "lilleman@larvit.se",
-    "url": "http://github.com/larvit/larvitdb"
+  "name": "larvitdb",
+  "version": "1.1.1",
+  "description": "DB wrapper module for node.js",
+  "main": "larvitdb.js",
+  "directories": {
+    "test": "test"
   },
-  "contributors": [],
   "dependencies": {
     "async": "^1.5.2",
     "larvitutils": "^0.4.4",
-    "mysql": "^2.10.2",
+    "mysql": "^2.11.1",
     "winston": "^2.2.0"
   },
-  "description": "DB wrapper module for node.js",
   "devDependencies": {
-    "mocha": "^2.4.5"
+    "mocha": "^2.5.3"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/larvit/larvitdb.git"
   },
   "keywords": [
     "db",
@@ -22,17 +29,15 @@
     "mysql",
     "mariadb"
   ],
-  "main": "larvitdb.js",
-  "name": "larvitdb",
-  "repository": {
-    "url": "https://github.com/larvit/larvitdb",
-    "type": "git"
+  "author": {
+    "name": "Mikael 'Lilleman' Göransson",
+    "email": "lilleman@larvit.se"
   },
-  "version": "1.1.0",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/larvit/larvitdb/issues"
   },
+  "homepage": "https://github.com/larvit/larvitdb#readme",
   "maintainers": [
     {
       "name": "lilleman",

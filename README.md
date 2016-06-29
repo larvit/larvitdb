@@ -22,13 +22,13 @@ Make this in your main application file:
 const db = require('larvitdb');
 
 db.setup({
-	"connectionLimit":   10,
-	"socketPath":        "/var/run/mysqld/mysqld.sock",
-	"user":              "foo",
-	"password":          "bar",
-	"charset":           "utf8_general_ci",
-	"supportBigNumbers": true,
-	"database":          "my_database_name"
+	'connectionLimit':   10,
+	'socketPath':        '/var/run/mysqld/mysqld.sock',
+	'user':              'foo',
+	'password':          'bar',
+	'charset':           'utf8_general_ci',
+	'supportBigNumbers': true,
+	'database':          'my_database_name'
 });
 ```
 
@@ -79,15 +79,15 @@ Sometimes recoverable errors happend in the database. One such example is deadlo
 const db = require('larvitdb');
 
 db.setup({
-	"connectionLimit":   10,
-	"socketPath":        "/var/run/mysqld/mysqld.sock",
-	"user":              "foo",
-	"password":          "bar",
-	"charset":           "utf8_general_ci",
-	"supportBigNumbers": true,
-	"database":          "my_database_name",
-	"retries":           5, // Defaults to 3 if omitted
-	"recoverableErrors": ["ER_LOCK_DEADLOCK"] // What error codes to retry
+	'connectionLimit':   10,
+	'socketPath':        '/var/run/mysqld/mysqld.sock',
+	'user':              'foo',
+	'password':          'bar',
+	'charset':           'utf8_general_ci',
+	'supportBigNumbers': true,
+	'database':          'my_database_name',
+	'retries':           5, // Defaults to 3 if omitted
+	'recoverableErrors': ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'] // What error codes to retry, these are the defaults
 });
 
 // If this query fails with a deadlock, it will be retried up to 5 times.
@@ -103,7 +103,7 @@ By default a warning is logged if a query runs longer than 10k ms (10 seconds). 
 ```javascript
 db.setup({
 	...
-	"longQueryTime": 20000
+	'longQueryTime': 20000
 });
 ```
 
@@ -112,7 +112,7 @@ or like this to disable the warnings:
 ```javascript
 db.setup({
 	...
-	"longQueryTime": false
+	'longQueryTime': false
 });
 
 ## Custom functions
