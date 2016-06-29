@@ -64,7 +64,7 @@ function query(sql, dbFields, retryNr, cb) {
 						return;
 					}
 
-					log.error('larvitdb: Exhausted retries (' + retrnyNr + ') for database recoverable error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+					log.error('larvitdb: Exhausted retries (' + retryNr + ') for database recoverable error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 					cb(err);
 					return;
 				}
