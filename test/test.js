@@ -61,7 +61,9 @@ before(function(done) {
 			log.info('Failed to find config file "' + confFile + '", retrying with "' + altConfFile + '"');
 
 			fs.stat(altConfFile, function(err) {
-				assert( ! err, 'fs.stat failed: ' + err.message);
+				if (err) {
+					assert( ! err, 'fs.stat failed: ' + err.message);
+				}
 
 				if ( ! err) {
 					runDbSetup(altConfFile);
