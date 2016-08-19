@@ -1,14 +1,14 @@
 'use strict';
 
-const events       = require('events'),
-      eventEmitter = new events.EventEmitter(),
-      async        = require('async'),
-      utils        = require('larvitutils'),
-      mysql        = require('mysql'),
-      log          = require('winston');
+const	events	= require('events'),
+	eventEmitter	= new events.EventEmitter(),
+	async	= require('async'),
+	utils	= require('larvitutils'),
+	mysql	= require('mysql2'),
+	log	= require('winston');
 
-let dbSetup = false,
-    conf;
+let	dbSetup	= false,
+	conf;
 
 // Wrap the query function to log database errors or slow running queries
 function query(sql, dbFields, retryNr, cb) {
@@ -16,14 +16,14 @@ function query(sql, dbFields, retryNr, cb) {
 		let startTime;
 
 		if (typeof retryNr === 'function') {
-			cb      = retryNr;
-			retryNr = 0;
+			cb	= retryNr;
+			retryNr	= 0;
 		}
 
 		if (typeof dbFields === 'function') {
-			cb       = dbFields;
-			dbFields = [];
-			retryNr  = 0;
+			cb	= dbFields;
+			dbFields	= [];
+			retryNr	= 0;
 		}
 
 		if (typeof cb !== 'function') {
@@ -50,8 +50,8 @@ function query(sql, dbFields, retryNr, cb) {
 
 			// We log and handle plain database errors in a unified matter
 			if (err) {
-				err.sql    = sql;
-				err.fields = dbFields;
+				err.sql	= sql;
+				err.fields	= dbFields;
 
 				// If this is a coverable error, simply try again.
 				if (conf.recoverableErrors.indexOf(err.code) !== - 1) {
@@ -91,8 +91,8 @@ function ready(cb) {
 function removeAllTables(cb) {
 	ready(function() {
 		exports.pool.getConnection(function(err, con) {
-			const tables = [],
-						tasks  = [];
+			const	tables	= [],
+				tasks	= [];
 
 			if (err) {
 				log.error('larvitdb: removeAllTables() - Could not get a connection from the pool: ' + err.message);
@@ -188,7 +188,7 @@ function setup(thisConf, cb) {
 	});
 };
 
-exports.query           = query;
-exports.ready           = ready;
-exports.removeAllTables = removeAllTables;
-exports.setup           = setup;
+exports.query	= query;
+exports.ready	= ready;
+exports.removeAllTables	= removeAllTables;
+exports.setup	= setup;

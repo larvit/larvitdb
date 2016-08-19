@@ -1,18 +1,18 @@
 'use strict';
 
-const assert = require('assert'),
-      async  = require('async'),
-      log    = require('winston'),
-      db     = require('../larvitdb.js'),
-      fs     = require('fs');
+const	assert	= require('assert'),
+	async	= require('async'),
+	log	= require('winston'),
+	db	= require('../larvitdb.js'),
+	fs	= require('fs');
 
 // Set up winston
 log.remove(log.transports.Console);
 log.add(log.transports.Console, {
-	'level':     'warn',
-	'colorize':  true,
-	'timestamp': true,
-	'json':      false
+	'level':	'warn',
+	'colorize':	true,
+	'timestamp':	true,
+	'json':	false
 });
 
 before(function(done) {
@@ -46,10 +46,11 @@ before(function(done) {
 		});
 	}
 
-	if (process.argv[3] === undefined)
+	if (process.argv[3] === undefined) {
 		confFile = __dirname + '/../config/db_test.json';
-	else
+	} else {
 		confFile = process.argv[3].split('=')[1];
+	}
 
 	log.verbose('DB config file: "' + confFile + '"');
 
@@ -60,11 +61,11 @@ before(function(done) {
 			log.info('Failed to find config file "' + confFile + '", retrying with "' + altConfFile + '"');
 
 			fs.stat(altConfFile, function(err) {
-				if (err)
-					assert( ! err, 'fs.stat failed: ' + err.message);
+				assert( ! err, 'fs.stat failed: ' + err.message);
 
-				if ( ! err)
+				if ( ! err) {
 					runDbSetup(altConfFile);
+				}
 			});
 		} else {
 			runDbSetup(confFile);
@@ -73,57 +74,149 @@ before(function(done) {
 });
 
 describe('Db tests', function() {
-	it('Create a table', function(done) {
-		db.query('CREATE TABLE `fjant` (`test` int NOT NULL) ENGINE=\'InnoDB\';', function(err) {
-			assert( ! err, 'err should be negative');
-			done();
-		});
-	});
+	function dbTests(dbCon, cb) {
+		const	tasks	= [];
 
-	it('Insert into table', function(done) {
-		db.query('INSERT INTO `fjant` VALUES(13);', function(err) {
-			assert( ! err, 'err should be negative');
-			done();
+		tasks.push(function(cb) {
+			dbCon.query('CREATE TABLE `fjant` (`test` int NOT NULL) ENGINE=\'InnoDB\';', function(err) {
+				assert( ! err, 'err should be negative');
+				cb(err);
+			});
 		});
-	});
 
-	it('Select from table', function(done) {
-		db.query('SELECT test FROM fjant', function(err, rows) {
-			assert( ! err, 'err should be negative');
-			assert.deepEqual(rows.length, 1);
-			assert.deepEqual(rows[0].test, 13);
-			done();
+		tasks.push(function(cb) {
+			dbCon.query('INSERT INTO `fjant` VALUES(13);', function(err) {
+				assert( ! err, 'err should be negative');
+				cb(err);
+			});
 		});
-	});
 
-	it('Update table', function(done) {
-		db.query('UPDATE fjant SET test = 7', function(err) {
-			assert( ! err, 'err should be negative');
-			db.query('SELECT test FROM fjant', function(err, rows) {
+		tasks.push(function(cb) {
+			dbCon.query('SELECT test FROM fjant', function(err, rows) {
 				assert( ! err, 'err should be negative');
 				assert.deepEqual(rows.length, 1);
-				assert.deepEqual(rows[0].test, 7);
-				done();
+				assert.deepEqual(rows[0].test, 13);
+				cb(err);
 			});
 		});
-	});
 
-	it('Delete from table', function(done) {
-		db.query('DELETE FROM fjant', function(err) {
-			assert( ! err, 'err should be negative');
-			db.query('SELECT test FROM fjant', function(err, rows) {
+		tasks.push(function(cb) {
+			dbCon.query('UPDATE fjant SET test = 7', function(err) {
 				assert( ! err, 'err should be negative');
-				assert.deepEqual(rows.length, 0);
-				done();
+				dbCon.query('SELECT test FROM fjant', function(err, rows) {
+					assert( ! err, 'err should be negative');
+					assert.deepEqual(rows.length, 1);
+					assert.deepEqual(rows[0].test, 7);
+					cb(err);
+				});
 			});
+		});
+
+		tasks.push(function(cb) {
+			dbCon.query('DELETE FROM fjant', function(err) {
+				assert( ! err, 'err should be negative');
+				dbCon.query('SELECT test FROM fjant', function(err, rows) {
+					assert( ! err, 'err should be negative');
+					assert.deepEqual(rows.length, 0);
+					cb(err);
+				});
+			});
+		});
+
+		tasks.push(function(cb) {
+			dbCon.query('DROP TABLE fjant', function(err) {
+				assert( ! err, 'err should be negative');
+				cb(err);
+			});
+		});
+
+		async.series(tasks, cb);
+	}
+
+	it('Simple queries', function(done) {
+		dbTests(db, done);
+	});
+
+	it('Queries on a single connection from the pool', function(done) {
+		db.pool.getConnection(function(err, dbCon) {
+			assert( ! err, 'err should be negative');
+
+			dbTests(dbCon, done);
 		});
 	});
 
-	it('Drop table', function(done) {
-		db.query('DROP TABLE fjant', function(err) {
-			assert( ! err, 'err should be negative');
-			done();
+	it('Transactions', function(done) {
+		const	tasks	= [];
+
+		tasks.push(function(cb) {
+			db.query('CREATE TABLE `foobar` (`baz` int);', cb);
 		});
+
+		tasks.push(function(cb) {
+			db.query('INSERT INTO foobar VALUES(5)', cb);
+		});
+
+		// Successfull transaction
+		tasks.push(function(cb) {
+			db.pool.getConnection(function(err, dbCon) {
+				assert( ! err, 'err should be negative');
+
+				dbCon.beginTransaction(function(err) {
+					assert( ! err, 'err should be negative');
+
+					dbCon.query('INSERT INTO foobar VALUES(5)', function(err) {
+						assert( ! err, 'err should be negative');
+
+						// If an error occurred in the queries, in a production environment
+						// a rollback should be performed...
+
+						dbCon.commit(function(err) {
+							assert( ! err, 'err should be negative');
+
+							cb(err);
+						});
+					});
+				});
+			});
+		});
+
+		// Rolled back transaction
+		tasks.push(function(cb) {
+			db.pool.getConnection(function(err, dbCon) {
+				assert( ! err, 'err should be negative');
+
+				dbCon.beginTransaction(function(err) {
+					assert( ! err, 'err should be negative');
+
+					dbCon.query('INSERT INTO foobar VALUES(5)', function(err) {
+						assert( ! err, 'err should be negative');
+
+						dbCon.rollback(function(err) {
+							assert( ! err, 'err should be negative');
+
+							cb(err);
+						});
+					});
+				});
+			});
+		});
+
+		// Since we have 1 normal insert with value of 5, then a transaction insert
+		// also of 5, and then a rolled back transaction of 5, the sum should be
+		// 5 + (5 - 5) + 5 = 10
+		tasks.push(function(cb) {
+			db.query('SELECT SUM(baz) AS bazSum FROM foobar', function(err, rows) {
+				assert( ! err, 'err should be negative');
+				assert.deepEqual(rows[0].bazSum, 10);
+				cb(err);
+			});
+		});
+
+		tasks.push(function(cb) {
+			db.query('DROP TABLE foobar', cb);
+		});
+
+		async.series(tasks, done);
 	});
 
 	it('Remove all tables from database', function(done) {
