@@ -1,6 +1,6 @@
 {
   "name": "larvitdb",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "DB wrapper module for node.js",
   "main": "larvitdb.js",
   "directories": {
