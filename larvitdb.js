@@ -28,7 +28,8 @@ function query(sql, dbFields, options, cb) {
 			}
 
 			if (typeof cb !== 'function') {
-				cb = function(){};
+				cb	= function(){};
+				options	= {};
 			}
 
 			if (options.retryNr	=== undefined) { options.retryNr	= 0;	}
