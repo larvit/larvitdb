@@ -11,25 +11,28 @@ let	dbSetup	= false,
 	conf;
 
 // Wrap the query function to log database errors or slow running queries
-function query(sql, dbFields, retryNr, cb) {
+function query(sql, dbFields, options, cb) {
 	try {
 		ready(function() {
 			let startTime;
 
-			if (typeof retryNr === 'function') {
-				cb	= retryNr;
-				retryNr	= 0;
+			if (typeof options === 'function') {
+				cb	= options;
+				options	= {};
 			}
 
 			if (typeof dbFields === 'function') {
 				cb	= dbFields;
 				dbFields	= [];
-				retryNr	= 0;
+				options	= {};
 			}
 
 			if (typeof cb !== 'function') {
 				cb = function(){};
 			}
+
+			if (options.retryNr	=== undefined) { options.retryNr	= 0;	}
+			if (options.ignoreLongQueryWarning	=== undefined) { options.ignoreLongQueryWarning	= false;	}
 
 			if (exports.pool === undefined) {
 				let err = new Error('larvitdb: No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
@@ -43,7 +46,7 @@ function query(sql, dbFields, retryNr, cb) {
 			exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
 				const queryTime = utils.hrtimeToMs(startTime, 4);
 
-				if (conf.longQueryTime !== false && conf.longQueryTime < queryTime) {
+				if (conf.longQueryTime !== false && conf.longQueryTime < queryTime && options.ignoreLongQueryWarning !== true) {
 					log.warn('larvitdb: Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
 				} else {
 					log.debug('larvitdb: Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
@@ -56,16 +59,16 @@ function query(sql, dbFields, retryNr, cb) {
 
 					// If this is a coverable error, simply try again.
 					if (conf.recoverableErrors.indexOf(err.code) !== - 1) {
-						retryNr ++;
-						if (retryNr <= conf.retries) {
-							log.warn('larvitdb: Retrying database recoverable error: ' + err.message + ' retryNr: ' + retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+						options.retryNr = options.retryNr + 1;
+						if (options.retryNr <= conf.retries) {
+							log.warn('larvitdb: Retrying database recoverable error: ' + err.message + ' retryNr: ' + options.retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 							setTimeout(function() {
-								query(sql, dbFields, retryNr, cb);
+								query(sql, dbFields, {'retryNr': options.retryNr}, cb);
 							}, 50);
 							return;
 						}
 
-						log.error('larvitdb: Exhausted retries (' + retryNr + ') for database recoverable error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+						log.error('larvitdb: Exhausted retries (' + options.retryNr + ') for database recoverable error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 						cb(err);
 						return;
 					}
