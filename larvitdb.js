@@ -91,7 +91,7 @@ function query(sql, dbFields, options, cb) {
 function ready(cb) {
 	if (dbSetup) { cb(); return; }
 
-	eventEmitter.on('checked', cb);
+	eventEmitter.once('checked', cb);
 };
 
 function removeAllTables(cb) {
