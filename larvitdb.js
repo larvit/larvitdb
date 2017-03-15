@@ -10,6 +10,8 @@ const	events	= require('events'),
 let	dbSetup	= false,
 	conf;
 
+eventEmitter.setMaxListeners(50); // There is no problem with a lot of listeneres on this one
+
 // Wrap the query function to log database errors or slow running queries
 function query(sql, dbFields, options, cb) {
 	try {
