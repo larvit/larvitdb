@@ -1,6 +1,7 @@
 'use strict';
 
-const	events	= require('events'),
+const	topLogPrefix	= 'larvitdb: larvitdb.js: ',
+	events	= require('events'),
 	eventEmitter	= new events.EventEmitter(),
 	async	= require('async'),
 	utils	= require('larvitutils'),
@@ -12,8 +13,97 @@ let	dbSetup	= false,
 
 eventEmitter.setMaxListeners(50); // There is no problem with a lot of listeneres on this one
 
+// Wrap getConnection to log errors
+function getConnection(cb) {
+	const	logPrefix	= topLogPrefix + 'getConnection() - ';
+
+	exports.pool.getConnection(function (err, dbCon) {
+		if (err) {
+			log.error(logPrefix + 'Could not get connection, err: ' + err.message);
+			return cb(err);
+		}
+
+		dbCon.org_beginTransaction	= dbCon.beginTransaction;
+		dbCon.org_commit	= dbCon.commit;
+		dbCon.org_query	= dbCon.query;
+		dbCon.org_rollback	= dbCon.rollback;
+
+		dbCon.beginTransaction = function beginTransaction(cb) {
+			const	subLogPrefix	= logPrefix + 'beginTransaction() - ';
+
+			dbCon.org_beginTransaction(function (err) {
+				if (err) {
+					log.error(subLogPrefix + err.message);
+					return cb(err);
+				}
+
+				cb(err);
+			});
+		};
+
+		dbCon.commit = function commit(cb) {
+			const	subLogPrefix	= logPrefix + 'commit() - ';
+
+			dbCon.org_commit(function (err) {
+				if (err) {
+					log.error(subLogPrefix + err.message);
+					return cb(err);
+				}
+
+				cb(err);
+			});
+		};
+
+		dbCon.query = function query(sql, dbFields, cb) {
+			const	subLogPrefix	= logPrefix + 'query() - ';
+
+			let	startTime;
+
+			if (typeof dbFields === 'function') {
+				cb	= dbFields;
+				dbFields	= [];
+			}
+
+			if ( ! dbFields) {
+				dbFields	= [];
+			}
+
+			startTime	= process.hrtime();
+
+			dbCon.org_query(sql, dbFields, function (err, rows) {
+				const	queryTime	= utils.hrtimeToMs(startTime, 4);
+
+				log.debug(subLogPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+
+				if (err) {
+					log.error(subLogPrefix + err.message, ', SQL: "' + err.sql + '"');
+				}
+
+				cb(err, rows);
+			});
+		};
+
+		dbCon.rollback = function rollback(cb) {
+			const	subLogPrefix	= logPrefix + 'rollback() - ';
+
+			dbCon.org_rollback(function (err) {
+				if (err) {
+					log.error(subLogPrefix + err.message);
+					return cb(err);
+				}
+
+				cb(err);
+			});
+		};
+
+		cb(err, dbCon);
+	});
+}
+
 // Wrap the query function to log database errors or slow running queries
 function query(sql, dbFields, options, cb) {
+	const	logPrefix	= topLogPrefix + 'query() - ';
+
 	try {
 		ready(function() {
 			let startTime;
@@ -35,24 +125,23 @@ function query(sql, dbFields, options, cb) {
 			}
 
 			if (options.retryNr	=== undefined) { options.retryNr	= 0;	}
-			if (options.ignoreLongQueryWarning	=== undefined) { options.ignoreLongQueryWarning	= false;	}
+			if (options.ignoreLongQueryWarning	=== undefined) { options.ignoreLongQueryWarning	= true;	}
 
 			if (exports.pool === undefined) {
-				let err = new Error('larvitdb: No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-				log.error(err.message);
-				cb(err);
-				return;
+				const	err	= new Error('No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+				log.error(logPrefix + err.message);
+				return cb(err);
 			}
 
-			startTime = process.hrtime();
+			startTime	= process.hrtime();
 
 			exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
-				const queryTime = utils.hrtimeToMs(startTime, 4);
+				const	queryTime	= utils.hrtimeToMs(startTime, 4);
 
 				if (conf.longQueryTime !== false && conf.longQueryTime < queryTime && options.ignoreLongQueryWarning !== true) {
-					log.warn('larvitdb: Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+					log.warn(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
 				} else {
-					log.debug('larvitdb: Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+					log.debug(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
 				}
 
 				// We log and handle plain database errors in a unified matter
@@ -64,39 +153,39 @@ function query(sql, dbFields, options, cb) {
 					if (conf.recoverableErrors.indexOf(err.code) !== - 1) {
 						options.retryNr = options.retryNr + 1;
 						if (options.retryNr <= conf.retries) {
-							log.warn('larvitdb: Retrying database recoverable error: ' + err.message + ' retryNr: ' + options.retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+							log.warn(logPrefix + 'Retrying database recoverable error: ' + err.message + ' retryNr: ' + options.retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 							setTimeout(function() {
 								query(sql, dbFields, {'retryNr': options.retryNr}, cb);
 							}, 50);
 							return;
 						}
 
-						log.error('larvitdb: Exhausted retries (' + options.retryNr + ') for database recoverable error: ' + err.message + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-						cb(err);
-						return;
+						log.error(logPrefix + 'Exhausted retries (' + options.retryNr + ') for database recoverable error: ' + err.message + ' SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
+						return cb(err);
 					}
 
-					log.error('larvitdb: Database error msg: ' + err.message + ', code: "' + err.code + '" SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-					cb(err);
-					return;
+					log.error(logPrefix + 'Database error msg: ' + err.message + ', code: "' + err.code + '" SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
+					return cb(err);
 				}
 
 				cb(null, rows, rowFields);
 			});
 		});
 	} catch (err) {
-		log.error('larvitdb: query() - Throwed error from database driver: ' + err.message);
+		log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
 		cb(err);
 	}
 };
 
 function ready(cb) {
-	if (dbSetup) { cb(); return; }
+	if (dbSetup) return cb();
 
 	eventEmitter.once('checked', cb);
 };
 
 function removeAllTables(cb) {
+	const	logPrefix	= topLogPrefix + 'removeAllTables() - ';
+
 	try {
 		ready(function() {
 			exports.pool.getConnection(function(err, con) {
@@ -104,7 +193,7 @@ function removeAllTables(cb) {
 					tasks	= [];
 
 				if (err) {
-					log.error('larvitdb: removeAllTables() - Could not get a connection from the pool: ' + err.message);
+					log.error(logPrefix + 'Could not get a connection from the pool: ' + err.message);
 					cb(err);
 					return;
 				}
@@ -118,7 +207,7 @@ function removeAllTables(cb) {
 				tasks.push(function(cb) {
 					con.query('SHOW TABLES', function(err, rows) {
 						if (err) {
-							log.error('larvitdb: removeAllTables() - Error when running "SHOW TABLES": ' + err.message);
+							log.error(logPrefix + 'Error when running "SHOW TABLES": ' + err.message);
 							cb(err);
 							return;
 						}
@@ -160,12 +249,14 @@ function removeAllTables(cb) {
 			});
 		});
 	} catch (err) {
-		log.error('larvitdb: removeAllTables() - Throwed error from database driver: ' + err.message);
+		log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
 		cb(err);
 	}
 }
 
 function setup(thisConf, cb) {
+	const	logPrefix	= topLogPrefix + 'setup() - ';
+
 	try {
 		exports.conf = conf = thisConf;
 		exports.pool = mysql.createPool(conf); // Expose pool
@@ -188,9 +279,9 @@ function setup(thisConf, cb) {
 		// Make connection test to database
 		exports.pool.query('SELECT 1', function(err, rows) {
 			if (err || rows.length === 0) {
-				log.error('larvitdb: setup() - Database connection test failed!');
+				log.error(logPrefix + 'Database connection test failed!');
 			} else {
-				log.info('larvitdb: setup() - Database connection test succeeded.');
+				log.info(logPrefix + 'Database connection test succeeded.');
 			}
 
 			dbSetup = true;
@@ -201,11 +292,12 @@ function setup(thisConf, cb) {
 			}
 		});
 	} catch (err) {
-		log.error('larvitdb: setup() - Throwed error from database driver: ' + err.message);
+		log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
 		cb(err);
 	}
 };
 
+exports.getConnection	= getConnection;
 exports.query	= query;
 exports.ready	= ready;
 exports.removeAllTables	= removeAllTables;

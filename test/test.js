@@ -20,17 +20,8 @@ before(function(done) {
 
 	function checkEmptyDb() {
 		db.query('SHOW TABLES', function(err, rows) {
-			if (err) {
-				log.error(err);
-				assert( ! err, 'err should be negative');
-				process.exit(1);
-			}
-
-			if (rows.length) {
-				log.error('Database is not empty. To make a test, you must supply an empty database!');
-				assert.deepEqual(rows.length, 0);
-				process.exit(1);
-			}
+			if (err)	throw err;
+			if (rows.length)	throw new Error('Database is not empty. To make a test, you must supply an empty database!');
 
 			done();
 		});
@@ -40,7 +31,7 @@ before(function(done) {
 		log.verbose('DB config: ' + JSON.stringify(require(confFile)));
 
 		db.setup(require(confFile), function(err) {
-			assert( ! err, 'err should be negative');
+			if (err) throw err;
 
 			checkEmptyDb();
 		});
@@ -61,13 +52,9 @@ before(function(done) {
 			log.info('Failed to find config file "' + confFile + '", retrying with "' + altConfFile + '"');
 
 			fs.stat(altConfFile, function(err) {
-				if (err) {
-					assert( ! err, 'fs.stat failed: ' + err.message);
-				}
+				if (err) throw err;
 
-				if ( ! err) {
-					runDbSetup(altConfFile);
-				}
+				runDbSetup(altConfFile);
 			});
 		} else {
 			runDbSetup(confFile);
@@ -80,35 +67,29 @@ describe('Db tests', function() {
 		const	tasks	= [];
 
 		tasks.push(function(cb) {
-			dbCon.query('CREATE TABLE `fjant` (`test` int NOT NULL) ENGINE=\'InnoDB\';', function(err) {
-				assert( ! err, 'err should be negative');
-				cb(err);
-			});
+			dbCon.query('CREATE TABLE `fjant` (`test` int NOT NULL) ENGINE=\'InnoDB\';', cb);
 		});
 
 		tasks.push(function(cb) {
-			dbCon.query('INSERT INTO `fjant` VALUES(13);', function(err) {
-				assert( ! err, 'err should be negative');
-				cb(err);
-			});
+			dbCon.query('INSERT INTO `fjant` VALUES(13);', cb);
 		});
 
 		tasks.push(function(cb) {
 			dbCon.query('SELECT test FROM fjant', function(err, rows) {
-				assert( ! err, 'err should be negative');
-				assert.deepEqual(rows.length, 1);
-				assert.deepEqual(rows[0].test, 13);
+				if (err) throw err;
+				assert.strictEqual(rows.length,	1);
+				assert.strictEqual(rows[0].test,	13);
 				cb(err);
 			});
 		});
 
 		tasks.push(function(cb) {
-			dbCon.query('UPDATE fjant SET test = 7', function(err) {
-				assert( ! err, 'err should be negative');
+			dbCon.query('UPDATE fjant SET test = ?', [7], function(err) {
+				if (err) throw err;
 				dbCon.query('SELECT test FROM fjant', function(err, rows) {
-					assert( ! err, 'err should be negative');
-					assert.deepEqual(rows.length, 1);
-					assert.deepEqual(rows[0].test, 7);
+					if (err) throw err;
+					assert.strictEqual(rows.length,	1);
+					assert.strictEqual(rows[0].test,	7);
 					cb(err);
 				});
 			});
@@ -116,23 +97,23 @@ describe('Db tests', function() {
 
 		tasks.push(function(cb) {
 			dbCon.query('DELETE FROM fjant', function(err) {
-				assert( ! err, 'err should be negative');
+				if (err) throw err;
 				dbCon.query('SELECT test FROM fjant', function(err, rows) {
-					assert( ! err, 'err should be negative');
-					assert.deepEqual(rows.length, 0);
+					if (err) throw err;
+					assert.strictEqual(rows.length,	0);
 					cb(err);
 				});
 			});
 		});
 
 		tasks.push(function(cb) {
-			dbCon.query('DROP TABLE fjant', function(err) {
-				assert( ! err, 'err should be negative');
-				cb(err);
-			});
+			dbCon.query('DROP TABLE fjant', cb);
 		});
 
-		async.series(tasks, cb);
+		async.series(tasks, function (err) {
+			if (err) throw err;
+			cb();
+		});
 	}
 
 	it('Simple queries', function(done) {
@@ -140,8 +121,8 @@ describe('Db tests', function() {
 	});
 
 	it('Queries on a single connection from the pool', function(done) {
-		db.pool.getConnection(function(err, dbCon) {
-			assert( ! err, 'err should be negative');
+		db.getConnection(function(err, dbCon) {
+			if (err) throw err;
 
 			dbTests(dbCon, done);
 		});
@@ -160,20 +141,20 @@ describe('Db tests', function() {
 
 		// Successfull transaction
 		tasks.push(function(cb) {
-			db.pool.getConnection(function(err, dbCon) {
-				assert( ! err, 'err should be negative');
+			db.getConnection(function(err, dbCon) {
+				if (err) throw err;
 
 				dbCon.beginTransaction(function(err) {
-					assert( ! err, 'err should be negative');
+					if (err) throw err;
 
 					dbCon.query('INSERT INTO foobar VALUES(5)', function(err) {
-						assert( ! err, 'err should be negative');
+						if (err) throw err;
 
 						// If an error occurred in the queries, in a production environment
 						// a rollback should be performed...
 
 						dbCon.commit(function(err) {
-							assert( ! err, 'err should be negative');
+							if (err) throw err;
 
 							cb(err);
 						});
@@ -184,17 +165,17 @@ describe('Db tests', function() {
 
 		// Rolled back transaction
 		tasks.push(function(cb) {
-			db.pool.getConnection(function(err, dbCon) {
-				assert( ! err, 'err should be negative');
+			db.getConnection(function(err, dbCon) {
+				if (err) throw err;
 
 				dbCon.beginTransaction(function(err) {
-					assert( ! err, 'err should be negative');
+					if (err) throw err;
 
 					dbCon.query('INSERT INTO foobar VALUES(5)', function(err) {
-						assert( ! err, 'err should be negative');
+						if (err) throw err;
 
 						dbCon.rollback(function(err) {
-							assert( ! err, 'err should be negative');
+							if (err) throw err;
 
 							cb(err);
 						});
@@ -208,8 +189,8 @@ describe('Db tests', function() {
 		// 5 + (5 - 5) + 5 = 10
 		tasks.push(function(cb) {
 			db.query('SELECT SUM(baz) AS bazSum FROM foobar', function(err, rows) {
-				assert( ! err, 'err should be negative');
-				assert.deepEqual(rows[0].bazSum, 10);
+				if (err) throw err;
+				assert.strictEqual(Number(rows[0].bazSum),	10);
 				cb(err);
 			});
 		});
@@ -250,8 +231,8 @@ describe('Db tests', function() {
 		// Check so no tables exists
 		tasks.push(function(cb) {
 			db.query('SHOW TABLES', function(err, rows) {
-				assert( ! err, 'err should be negative');
-				assert.deepEqual(rows.length, 0);
+				if (err) throw err;
+				assert.strictEqual(rows.length,	0);
 				cb();
 			});
 		});
