@@ -31,6 +31,8 @@ function getConnection(cb) {
 		dbCon.beginTransaction = function beginTransaction(cb) {
 			const	subLogPrefix	= logPrefix + 'beginTransaction() - ';
 
+			if (typeof cb !== 'function') cb = function () {};
+
 			dbCon.org_beginTransaction(function (err) {
 				if (err) {
 					log.error(subLogPrefix + err.message);
@@ -43,6 +45,8 @@ function getConnection(cb) {
 
 		dbCon.commit = function commit(cb) {
 			const	subLogPrefix	= logPrefix + 'commit() - ';
+
+			if (typeof cb !== 'function') cb = function () {};
 
 			dbCon.org_commit(function (err) {
 				if (err) {
@@ -68,6 +72,8 @@ function getConnection(cb) {
 				dbFields	= [];
 			}
 
+			if (typeof cb !== 'function') cb = function () {};
+
 			startTime	= process.hrtime();
 
 			dbCon.org_query(sql, dbFields, function (err, rows) {
@@ -85,6 +91,8 @@ function getConnection(cb) {
 
 		dbCon.rollback = function rollback(cb) {
 			const	subLogPrefix	= logPrefix + 'rollback() - ';
+
+			if (typeof cb !== 'function') cb = function () {};
 
 			dbCon.org_rollback(function (err) {
 				if (err) {
