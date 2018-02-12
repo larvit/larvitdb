@@ -1,16 +1,13 @@
 'use strict';
 
 const	assert	= require('assert'),
+	mysql	= require('mysql2'),
 	async	= require('async'),
 	log	= require('winston'),
 	db	= require('../larvitdb.js'),
 	fs	= require('fs');
 
-const	mysql	= require('mysql2');
-
-// FULING!
-	let confFile;
-
+let confFile;
 
 // Set up winston
 log.remove(log.transports.Console);
@@ -22,8 +19,6 @@ log.add(log.transports.Console, {
 });
 
 before(function(done) {
-//	let confFile;
-
 	function checkEmptyDb() {
 		db.query('SHOW TABLES', function(err, rows) {
 			if (err)	throw err;
