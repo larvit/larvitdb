@@ -1,13 +1,10 @@
 'use strict';
 
 const	assert	= require('assert'),
-	mysql	= require('mysql2'),
 	async	= require('async'),
 	log	= require('winston'),
 	db	= require('../larvitdb.js'),
 	fs	= require('fs');
-
-let confFile;
 
 // Set up winston
 log.remove(log.transports.Console);
@@ -19,6 +16,8 @@ log.add(log.transports.Console, {
 });
 
 before(function(done) {
+	let confFile;
+
 	function checkEmptyDb() {
 		db.query('SHOW TABLES', function(err, rows) {
 			if (err)	throw err;
@@ -124,7 +123,6 @@ describe('Db tests', function() {
 	it('Queries on a single connection from the pool', function(done) {
 		db.getConnection(function(err, dbCon) {
 			if (err) throw err;
-
 			dbTests(dbCon, done);
 		});
 	});
@@ -257,9 +255,10 @@ describe('Db tests', function() {
 
 		// Get dbCon
 		tasks.push(function (cb) {
-			// Does not work with getting a connection from the pool
-			dbCon	= mysql.createConnection(require(confFile));
-			cb();
+			db.pool.getConnection(function (err, result) {
+				dbCon	= result;
+				cb(err);
+			});
 		});
 
 		// Check contents
@@ -296,7 +295,8 @@ describe('Db tests', function() {
 
 			query.on('end', function () {
 				assert.strictEqual(rowNr,	3);
-				dbCon.end(cb);
+				dbCon.release();
+				cb();
 			});
 		});
 
