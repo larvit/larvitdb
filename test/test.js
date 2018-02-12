@@ -309,6 +309,5 @@ describe('Db tests', function() {
 			if (err) throw err;
 			done();
 		});
-
 	});
 });
