@@ -6,6 +6,12 @@ const	assert	= require('assert'),
 	db	= require('../larvitdb.js'),
 	fs	= require('fs');
 
+const	mysql	= require('mysql2');
+
+// FULING!
+	let confFile;
+
+
 // Set up winston
 log.remove(log.transports.Console);
 log.add(log.transports.Console, {
@@ -16,7 +22,7 @@ log.add(log.transports.Console, {
 });
 
 before(function(done) {
-	let confFile;
+//	let confFile;
 
 	function checkEmptyDb() {
 		db.query('SHOW TABLES', function(err, rows) {
@@ -238,5 +244,76 @@ describe('Db tests', function() {
 		});
 
 		async.series(tasks, done);
+	});
+
+	it('Stream rows', function (done) {
+		const	tasks	= [];
+
+		let	rowNr	= 0,
+			dbCon;
+
+		// Create table with data
+		tasks.push(function (cb) {
+			db.query('CREATE TABLE `plutt` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `name` varchar(191) NOT NULL);', cb);
+		});
+		tasks.push(function (cb) {
+			db.query('INSERT INTO plutt (name) VALUES(\'bosse\'),(\'hasse\'),(\'vråkbert\');', cb);
+		});
+
+		// Get dbCon
+		tasks.push(function (cb) {
+			// Does not work with getting a connection from the pool
+			dbCon	= mysql.createConnection(require(confFile));
+			cb();
+		});
+
+		// Check contents
+		tasks.push(function (cb) {
+			const	query	= dbCon.query('SELECT * FROM plutt');
+
+			query.on('error', function (err) {
+				throw err;
+			});
+
+			query.on('fields', function (fields) {
+				assert.strictEqual(fields[0].name,	'id');
+				assert.strictEqual(fields[1].name,	'name');
+			});
+
+			query.on('result', function (row) {
+				dbCon.pause(); // Pause streaming while handling row
+
+				rowNr ++;
+
+				if (rowNr === 1) {
+					assert.strictEqual(row.id,	1);
+					assert.strictEqual(row.name,	'bosse');
+				} else if (rowNr === 2) {
+					assert.strictEqual(row.id,	2);
+					assert.strictEqual(row.name,	'hasse');
+				} else if (rowNr === 2) {
+					assert.strictEqual(row.id,	3);
+					assert.strictEqual(row.name,	'vråkbert');
+				}
+
+				dbCon.resume(); // Resume streaming when processing of row is done (this is normally done in async, doh)
+			});
+
+			query.on('end', function () {
+				assert.strictEqual(rowNr,	3);
+				dbCon.end(cb);
+			});
+		});
+
+		// Clear database
+		tasks.push(function(cb) {
+			db.removeAllTables(cb);
+		});
+
+		async.series(tasks, function (err) {
+			if (err) throw err;
+			done();
+		});
+
 	});
 });
