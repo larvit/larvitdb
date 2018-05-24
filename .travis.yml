@@ -24,7 +24,7 @@ install:
 before_script:
   - mysql -e 'CREATE DATABASE test'
 
-script: mocha --exit test/test.js -confFile=db_travis.json
+script: mocha test/test.js -confFile=db_travis.json --exit
 
 services:
   - mysql
