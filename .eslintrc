@@ -9,7 +9,7 @@
 		"camelcase":	[0],
 		"comma-spacing":	[2, {"before": false, "after": true}],
 		"eol-last":	[0],
-		"function-paren-newline":	["error", "never"],
+		"function-paren-newline":	["error", "multiline"],
 		"indent":	["error", "tab"],
 		"key-spacing":	[0],
 		"keyword-spacing":	["error", {"before": true, "after": true}],

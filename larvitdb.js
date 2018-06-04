@@ -263,46 +263,70 @@ function removeAllTables(cb) {
 }
 
 function setup(thisConf, cb) {
-	const	logPrefix	= topLogPrefix + 'setup() - ';
+	const	logPrefix	= topLogPrefix + 'setup() - ',
+		tasks	= [];
 
-	try {
-		exports.conf = conf = thisConf;
-		exports.pool = mysql.createPool(conf); // Expose pool
+	exports.conf	= conf	= thisConf;
 
-		// Default to 3 retries on recoverable errors
-		if (conf.retries === undefined) {
-			conf.retries = 3;
-		}
-
-		// Default to setting recoverable errors to lost connection
-		if (conf.recoverableErrors === undefined) {
-			conf.recoverableErrors = ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'];
-		}
-
-		// Default slow running queries to 10 seconds
-		if (conf.longQueryTime === undefined) {
-			conf.longQueryTime = 10000;
-		}
-
-		// Make connection test to database
-		exports.pool.query('SELECT 1', function(err, rows) {
-			if (err || rows.length === 0) {
-				log.error(logPrefix + 'Database connection test failed!');
-			} else {
-				log.info(logPrefix + 'Database connection test succeeded.');
+	function tryToConnect(cb) {
+		const dbCon = mysql.connect(conf, function (err) {
+			if (err) {
+				log.warn(logPrefix + 'Could not connect to database, retrying in 5 seconds');
+				return setTimeout(function() {
+					tryToConnect(cb);
+				}, 1000);
 			}
 
-			dbSetup = true;
-			eventEmitter.emit('checked');
-
-			if (typeof cb === 'function') {
-				cb(err);
-			}
+			dbCon.destroy();
+			cb();
 		});
-	} catch (err) {
-		log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
-		cb(err);
 	}
+
+	// Wait for database to become available
+	tasks.push(tryToConnect);
+
+	// Start pool and check connection
+	tasks.push(function (cb) {
+		try {
+			exports.pool	= mysql.createPool(conf); // Expose pool
+
+			// Default to 3 retries on recoverable errors
+			if (conf.retries === undefined) {
+				conf.retries	= 3;
+			}
+
+			// Default to setting recoverable errors to lost connection
+			if (conf.recoverableErrors === undefined) {
+				conf.recoverableErrors	= ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'];
+			}
+
+			// Default slow running queries to 10 seconds
+			if (conf.longQueryTime === undefined) {
+				conf.longQueryTime	= 10000;
+			}
+
+			// Make connection test to database
+			exports.pool.query('SELECT 1', function(err, rows) {
+				if (err || rows.length === 0) {
+					log.error(logPrefix + 'Database connection test failed!');
+				} else {
+					log.info(logPrefix + 'Database connection test succeeded.');
+				}
+
+				dbSetup = true;
+				eventEmitter.emit('checked');
+
+				if (typeof cb === 'function') {
+					cb(err);
+				}
+			});
+		} catch (err) {
+			log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
+			cb(err);
+		}
+	});
+
+	async.series(tasks, cb);
 };
 
 exports.getConnection	= getConnection;
