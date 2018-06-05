@@ -113,7 +113,7 @@ function query(sql, dbFields, options, cb) {
 	const	logPrefix	= topLogPrefix + 'query() - ';
 
 	try {
-		ready(function() {
+		ready(function () {
 			let startTime;
 
 			if (typeof options === 'function') {
@@ -128,7 +128,7 @@ function query(sql, dbFields, options, cb) {
 			}
 
 			if (typeof cb !== 'function') {
-				cb	= function(){};
+				cb	= function () {};
 				options	= {};
 			}
 
@@ -143,7 +143,7 @@ function query(sql, dbFields, options, cb) {
 
 			startTime	= process.hrtime();
 
-			exports.pool.query(sql, dbFields, function(err, rows, rowFields) {
+			exports.pool.query(sql, dbFields, function (err, rows, rowFields) {
 				const	queryTime	= utils.hrtimeToMs(startTime, 4);
 
 				if (conf.longQueryTime !== false && conf.longQueryTime < queryTime && options.ignoreLongQueryWarning !== true) {
@@ -162,7 +162,7 @@ function query(sql, dbFields, options, cb) {
 						options.retryNr = options.retryNr + 1;
 						if (options.retryNr <= conf.retries) {
 							log.warn(logPrefix + 'Retrying database recoverable error: ' + err.message + ' retryNr: ' + options.retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-							setTimeout(function() {
+							setTimeout(function () {
 								query(sql, dbFields, {'retryNr': options.retryNr}, cb);
 							}, 50);
 							return;
@@ -195,8 +195,8 @@ function removeAllTables(cb) {
 	const	logPrefix	= topLogPrefix + 'removeAllTables() - ';
 
 	try {
-		ready(function() {
-			exports.pool.getConnection(function(err, con) {
+		ready(function () {
+			exports.pool.getConnection(function (err, con) {
 				const	tables	= [],
 					tasks	= [];
 
@@ -207,13 +207,13 @@ function removeAllTables(cb) {
 				}
 
 				// Disalbe foreign key checks to be able to remove tables in any order
-				tasks.push(function(cb) {
+				tasks.push(function (cb) {
 					con.query('SET FOREIGN_KEY_CHECKS=0;', cb);
 				});
 
 				// Gather table names
-				tasks.push(function(cb) {
-					con.query('SHOW TABLES', function(err, rows) {
+				tasks.push(function (cb) {
+					con.query('SHOW TABLES', function (err, rows) {
 						if (err) {
 							log.error(logPrefix + 'Error when running "SHOW TABLES": ' + err.message);
 							cb(err);
@@ -229,13 +229,13 @@ function removeAllTables(cb) {
 				});
 
 				// Actually remove tables
-				tasks.push(function(cb) {
+				tasks.push(function (cb) {
 					const sqlTasks = [];
 
 					for (let i = 0; tables[i] !== undefined; i ++) {
 						let tableName = tables[i];
 
-						sqlTasks.push(function(cb) {
+						sqlTasks.push(function (cb) {
 							con.query('DROP TABLE `' + tableName + '`;', cb);
 						});
 					}
@@ -244,11 +244,11 @@ function removeAllTables(cb) {
 				});
 
 				// Set foreign key checks back to normal
-				tasks.push(function(cb) {
+				tasks.push(function (cb) {
 					con.query('SET FOREIGN_KEY_CHECKS=1;', cb);
 				});
 
-				tasks.push(function(cb) {
+				tasks.push(function (cb) {
 					con.release();
 					cb();
 				});
@@ -269,10 +269,12 @@ function setup(thisConf, cb) {
 	exports.conf	= conf	= thisConf;
 
 	function tryToConnect(cb) {
-		const dbCon = mysql.connect(conf, function (err) {
+		const dbCon = mysql.createConnection(conf);
+
+		dbCon.connect(function (err) {
 			if (err) {
 				log.warn(logPrefix + 'Could not connect to database, retrying in 5 seconds');
-				return setTimeout(function() {
+				return setTimeout(function () {
 					tryToConnect(cb);
 				}, 1000);
 			}
@@ -306,7 +308,7 @@ function setup(thisConf, cb) {
 			}
 
 			// Make connection test to database
-			exports.pool.query('SELECT 1', function(err, rows) {
+			exports.pool.query('SELECT 1', function (err, rows) {
 				if (err || rows.length === 0) {
 					log.error(logPrefix + 'Database connection test failed!');
 				} else {
