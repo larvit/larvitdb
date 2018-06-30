@@ -273,10 +273,12 @@ function setup(thisConf, cb) {
 
 		dbCon.connect(function (err) {
 			if (err) {
-				log.warn(logPrefix + 'Could not connect to database, retrying in 5 seconds');
+				const retryIntervalSeconds = 1;
+				
+				log.warn(logPrefix + 'Could not connect to database, retrying in ' + retryIntervalSeconds + ' seconds');
 				return setTimeout(function () {
 					tryToConnect(cb);
-				}, 1000);
+				}, retryIntervalSeconds * 1000);
 			}
 
 			dbCon.destroy();
