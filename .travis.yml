@@ -25,19 +25,10 @@ before_script:
 
 script: mocha test/test.js -confFile=db_travis.json --exit
 
-services:
-  - mysql
-
 addons:
+  mariadb: '10.0'
   apt:
     sources:
     - ubuntu-toolchain-r-test
     packages:
     - g++-4.8
-
-
-#addons:
-#  mariadb:
-#    - 5.5
-#    - 10.0
-#    - 10.1

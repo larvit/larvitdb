@@ -112,77 +112,84 @@ function getConnection(cb) {
 function query(sql, dbFields, options, cb) {
 	const	logPrefix	= topLogPrefix + 'query() - ';
 
-	try {
-		ready(function () {
-			let startTime;
+	ready(function () {
+		let startTime;
 
-			if (typeof options === 'function') {
-				cb	= options;
-				options	= {};
-			}
+		if (typeof options === 'function') {
+			cb	= options;
+			options	= {};
+		}
 
-			if (typeof dbFields === 'function') {
-				cb	= dbFields;
-				dbFields	= [];
-				options	= {};
-			}
+		if (typeof dbFields === 'function') {
+			cb	= dbFields;
+			dbFields	= [];
+			options	= {};
+		}
 
-			if (typeof cb !== 'function') {
-				cb	= function () {};
-				options	= {};
-			}
+		if (typeof cb !== 'function') {
+			cb	= function () {};
+			options	= {};
+		}
 
-			if (options.retryNr	=== undefined) { options.retryNr	= 0;	}
-			if (options.ignoreLongQueryWarning	=== undefined) { options.ignoreLongQueryWarning	= true;	}
+		if (options.retryNr	=== undefined) { options.retryNr	= 0;	}
+		if (options.ignoreLongQueryWarning	=== undefined) { options.ignoreLongQueryWarning	= true;	}
 
-			if (exports.pool === undefined) {
-				const	err	= new Error('No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-				log.error(logPrefix + err.message);
-				return cb(err);
-			}
+		if (exports.pool === undefined) {
+			const	err	= new Error('No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+			log.error(logPrefix + err.message);
+			return cb(err);
+		}
 
-			startTime	= process.hrtime();
-
-			exports.pool.query(sql, dbFields, function (err, rows, rowFields) {
-				const	queryTime	= utils.hrtimeToMs(startTime, 4);
-
-				if (conf.longQueryTime !== false && conf.longQueryTime < queryTime && options.ignoreLongQueryWarning !== true) {
-					log.warn(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
-				} else {
-					log.debug(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+		// Convert datetimes to UTC
+		if (Array.isArray(dbFields)) {
+			for (let i = 0; dbFields[i] !== undefined; i ++) {
+				if (typeof dbFields[i] === Date) {
+					const	dbField	= dbFields[i];
+					dbField	= dbField.toISOString();
+					dbField[10]	= ' '; // Replace T with a space
+					dbField	= dbField.substring(0, dbField.length - 1);	// Cut the last Z off
 				}
+			}
+		}
 
-				// We log and handle plain database errors in a unified matter
-				if (err) {
-					err.sql	= sql;
-					err.fields	= dbFields;
+		startTime	= process.hrtime();
 
-					// If this is a coverable error, simply try again.
-					if (conf.recoverableErrors.indexOf(err.code) !== - 1) {
-						options.retryNr = options.retryNr + 1;
-						if (options.retryNr <= conf.retries) {
-							log.warn(logPrefix + 'Retrying database recoverable error: ' + err.message + ' retryNr: ' + options.retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-							setTimeout(function () {
-								query(sql, dbFields, {'retryNr': options.retryNr}, cb);
-							}, 50);
-							return;
-						}
+		exports.pool.query(sql, dbFields, function (err, rows, rowFields) {
+			const	queryTime	= utils.hrtimeToMs(startTime, 4);
 
-						log.error(logPrefix + 'Exhausted retries (' + options.retryNr + ') for database recoverable error: ' + err.message + ' SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
-						return cb(err);
+			if (conf.longQueryTime !== false && conf.longQueryTime < queryTime && options.ignoreLongQueryWarning !== true) {
+				log.warn(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+			} else {
+				log.debug(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+			}
+
+			// We log and handle plain database errors in a unified matter
+			if (err) {
+				err.sql	= sql;
+				err.fields	= dbFields;
+
+				// If this is a coverable error, simply try again.
+				if (conf.recoverableErrors.indexOf(err.code) !== - 1) {
+					options.retryNr = options.retryNr + 1;
+					if (options.retryNr <= conf.retries) {
+						log.warn(logPrefix + 'Retrying database recoverable error: ' + err.message + ' retryNr: ' + options.retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+						setTimeout(function () {
+							query(sql, dbFields, {'retryNr': options.retryNr}, cb);
+						}, 50);
+						return;
 					}
 
-					log.error(logPrefix + 'Database error msg: ' + err.message + ', code: "' + err.code + '" SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
+					log.error(logPrefix + 'Exhausted retries (' + options.retryNr + ') for database recoverable error: ' + err.message + ' SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
 					return cb(err);
 				}
 
-				cb(null, rows, rowFields);
-			});
+				log.error(logPrefix + 'Database error msg: ' + err.message + ', code: "' + err.code + '" SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
+				return cb(err);
+			}
+
+			cb(null, rows, rowFields);
 		});
-	} catch (err) {
-		log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
-		cb(err);
-	}
+	});
 };
 
 function ready(cb) {
@@ -274,7 +281,7 @@ function setup(thisConf, cb) {
 		dbCon.connect(function (err) {
 			if (err) {
 				const retryIntervalSeconds = 1;
-				
+
 				log.warn(logPrefix + 'Could not connect to database, retrying in ' + retryIntervalSeconds + ' seconds');
 				return setTimeout(function () {
 					tryToConnect(cb);

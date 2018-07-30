@@ -22,8 +22,9 @@ Make this in your main application file:
 const db = require('larvitdb');
 
 db.setup({
-	'connectionLimit':   10,
-	'socketPath':        '/var/run/mysqld/mysqld.sock',
+	'host':              '127.0.0.1',                   // Do not use with socketPath
+	'socketPath':        '/var/run/mysqld/mysqld.sock', // Do not use with host
+	'connectionLimit':   10,                            // Connections in the pool
 	'user':              'foo',
 	'password':          'bar',
 	'charset':           'utf8_general_ci',
@@ -126,3 +127,26 @@ const db = require('larvitdb');
 
 db.removeAllTables();
 ```
+
+## Important about time zones!
+
+All sessions with the database will be set to UTC time!
+
+When setting datetime stuff, use the javascript native Date object, like this:
+
+```javascript
+db.query('INSERT INTO users (created, username) VALUES(?,?)', [new Date(), 'foobar']);
+```
+
+If you do, this library will convert the time zone info for you.
+
+However, please note that all date time you get back from the database will be in UTC.
+
+## Version history
+
+### 2.0.0
+
+* Always set all new sessions to UTC time zone
+* Convert Date objects to UTC datetimestamps that fits MariaDB and MySQL
+
+Major from 1.x to 2.0 since this might break functionality for some implementations.

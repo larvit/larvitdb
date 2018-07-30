@@ -310,4 +310,53 @@ describe('Db tests', function () {
 			done();
 		});
 	});
+
+	it('Time zone dependent data', function (done) {
+		const	tasks	= [];
+
+		// Create table
+		tasks.push(function (cb) {
+			const	sql	= 'CREATE TABLE tzstuff (id int(11), tzstamp timestamp, tzdatetime datetime);';
+			db.query(sql, cb);
+		});
+
+		// Set datetime as javascript Date object
+		tasks.push(function (cb) {
+			const	dateObj	= new Date('2018-03-04T17:38:20Z');
+			db.query('INSERT INTO tzstuff VALUES(?,?,?);', [1, dateObj, dateObj], cb);
+		});
+
+		// Check the values
+		tasks.push(function (cb) {
+			db.query('SELECT * FROM tzstuff ORDER BY id', function (err, rows) {
+				let	foundRows	= 0;
+
+				if (err) throw err;
+
+				for (let i = 0; rows[i] !== undefined; i ++) {
+					const	row	= rows[i];
+
+					if (row.id === 1) {
+						foundRows ++;
+						assert.strictEqual(row.tzstamp.toISOString(),	'2018-03-04T17:38:20.000Z');
+						assert.strictEqual(row.tzdatetime.toISOString(),	'2018-03-04T17:38:20.000Z');
+					}
+				}
+
+				assert.strictEqual(foundRows,	1);
+
+				cb();
+			});
+		});
+
+		// Remove table
+		tasks.push(function (cb) {
+			db.query('DROP TABLE tzstuff;', cb);
+		});
+
+		async.series(tasks, function (err) {
+			if (err) throw err;
+			done();
+		});
+	});
 });
