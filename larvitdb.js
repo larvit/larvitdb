@@ -201,72 +201,67 @@ function ready(cb) {
 function removeAllTables(cb) {
 	const	logPrefix	= topLogPrefix + 'removeAllTables() - ';
 
-	try {
-		ready(function () {
-			exports.pool.getConnection(function (err, con) {
-				const	tables	= [],
-					tasks	= [];
+	ready(function () {
+		exports.pool.getConnection(function (err, con) {
+			const	tables	= [],
+				tasks	= [];
 
-				if (err) {
-					log.error(logPrefix + 'Could not get a connection from the pool: ' + err.message);
-					cb(err);
-					return;
-				}
+			if (err) {
+				log.error(logPrefix + 'Could not get a connection from the pool: ' + err.message);
+				cb(err);
+				return;
+			}
 
-				// Disalbe foreign key checks to be able to remove tables in any order
-				tasks.push(function (cb) {
-					con.query('SET FOREIGN_KEY_CHECKS=0;', cb);
-				});
+			// Disalbe foreign key checks to be able to remove tables in any order
+			tasks.push(function (cb) {
+				con.query('SET FOREIGN_KEY_CHECKS=0;', cb);
+			});
 
-				// Gather table names
-				tasks.push(function (cb) {
-					con.query('SHOW TABLES', function (err, rows) {
-						if (err) {
-							log.error(logPrefix + 'Error when running "SHOW TABLES": ' + err.message);
-							cb(err);
-							return;
-						}
-
-						for (let i = 0; rows[i] !== undefined; i ++) {
-							tables.push(rows[i]['Tables_in_' + exports.conf.database]);
-						}
-
-						cb();
-					});
-				});
-
-				// Actually remove tables
-				tasks.push(function (cb) {
-					const sqlTasks = [];
-
-					for (let i = 0; tables[i] !== undefined; i ++) {
-						let tableName = tables[i];
-
-						sqlTasks.push(function (cb) {
-							con.query('DROP TABLE `' + tableName + '`;', cb);
-						});
+			// Gather table names
+			tasks.push(function (cb) {
+				con.query('SHOW TABLES', function (err, rows) {
+					if (err) {
+						log.error(logPrefix + 'Error when running "SHOW TABLES": ' + err.message);
+						cb(err);
+						return;
 					}
 
-					async.parallel(sqlTasks, cb);
-				});
+					for (let i = 0; rows[i] !== undefined; i ++) {
+						tables.push(rows[i]['Tables_in_' + exports.conf.database]);
+					}
 
-				// Set foreign key checks back to normal
-				tasks.push(function (cb) {
-					con.query('SET FOREIGN_KEY_CHECKS=1;', cb);
-				});
-
-				tasks.push(function (cb) {
-					con.release();
 					cb();
 				});
-
-				async.series(tasks, cb);
 			});
+
+			// Actually remove tables
+			tasks.push(function (cb) {
+				const sqlTasks = [];
+
+				for (let i = 0; tables[i] !== undefined; i ++) {
+					let tableName = tables[i];
+
+					sqlTasks.push(function (cb) {
+						con.query('DROP TABLE `' + tableName + '`;', cb);
+					});
+				}
+
+				async.parallel(sqlTasks, cb);
+			});
+
+			// Set foreign key checks back to normal
+			tasks.push(function (cb) {
+				con.query('SET FOREIGN_KEY_CHECKS=1;', cb);
+			});
+
+			tasks.push(function (cb) {
+				con.release();
+				cb();
+			});
+
+			async.series(tasks, cb);
 		});
-	} catch (err) {
-		log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
-		cb(err);
-	}
+	});
 }
 
 function setup(thisConf, cb) {
@@ -276,11 +271,11 @@ function setup(thisConf, cb) {
 	exports.conf	= conf	= thisConf;
 
 	function tryToConnect(cb) {
-		const dbCon = mysql.createConnection(conf);
+		const	dbCon	= mysql.createConnection(conf);
 
 		dbCon.connect(function (err) {
 			if (err) {
-				const retryIntervalSeconds = 1;
+				const	retryIntervalSeconds	= 1;
 
 				log.warn(logPrefix + 'Could not connect to database, retrying in ' + retryIntervalSeconds + ' seconds');
 				return setTimeout(function () {
@@ -300,41 +295,46 @@ function setup(thisConf, cb) {
 	tasks.push(function (cb) {
 		try {
 			exports.pool	= mysql.createPool(conf); // Expose pool
-
-			// Default to 3 retries on recoverable errors
-			if (conf.retries === undefined) {
-				conf.retries	= 3;
-			}
-
-			// Default to setting recoverable errors to lost connection
-			if (conf.recoverableErrors === undefined) {
-				conf.recoverableErrors	= ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'];
-			}
-
-			// Default slow running queries to 10 seconds
-			if (conf.longQueryTime === undefined) {
-				conf.longQueryTime	= 10000;
-			}
-
-			// Make connection test to database
-			exports.pool.query('SELECT 1', function (err, rows) {
-				if (err || rows.length === 0) {
-					log.error(logPrefix + 'Database connection test failed!');
-				} else {
-					log.info(logPrefix + 'Database connection test succeeded.');
-				}
-
-				dbSetup = true;
-				eventEmitter.emit('checked');
-
-				if (typeof cb === 'function') {
-					cb(err);
-				}
-			});
 		} catch (err) {
 			log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
 			cb(err);
 		}
+
+		// Default to 3 retries on recoverable errors
+		if (conf.retries === undefined) {
+			conf.retries	= 3;
+		}
+
+		// Default to setting recoverable errors to lost connection
+		if (conf.recoverableErrors === undefined) {
+			conf.recoverableErrors	= ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'];
+		}
+
+		// Default slow running queries to 10 seconds
+		if (conf.longQueryTime === undefined) {
+			conf.longQueryTime	= 10000;
+		}
+
+		// Set timezone
+		exports.pool.on('connection', function (connection) {
+			connection.query('SET time_zone = \'+00:00\';');
+		});
+
+		// Make connection test to database
+		exports.pool.query('SELECT 1', function (err, rows) {
+			if (err || rows.length === 0) {
+				log.error(logPrefix + 'Database connection test failed!');
+			} else {
+				log.info(logPrefix + 'Database connection test succeeded.');
+			}
+
+			dbSetup	= true;
+			eventEmitter.emit('checked');
+
+			if (typeof cb === 'function') {
+				cb(err);
+			}
+		});
 	});
 
 	async.series(tasks, cb);
