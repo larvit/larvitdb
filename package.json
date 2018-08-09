@@ -1,6 +1,6 @@
 {
   "name": "larvitdb",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "DB wrapper module for node.js",
   "main": "larvitdb.js",
   "directories": {
@@ -8,9 +8,8 @@
   },
   "dependencies": {
     "async": "^2.0.1",
-    "larvitutils": "^1.0.1",
-    "mysql2": "^1.1.1",
-    "winston": "^2.2.0"
+    "larvitutils": "^2.0.0",
+    "mysql2": "^1.1.1"
   },
   "devDependencies": {
     "mocha": "^5.2.0",

@@ -3,10 +3,10 @@
 const	topLogPrefix	= 'larvitdb: larvitdb.js: ',
 	events	= require('events'),
 	eventEmitter	= new events.EventEmitter(),
+	LUtils	= require('larvitutils'),
+	lUtils	= new LUtils(),
 	async	= require('async'),
-	utils	= require('larvitutils'),
-	mysql	= require('mysql2'),
-	log	= require('winston');
+	mysql	= require('mysql2');
 
 let	dbSetup	= false,
 	conf;
@@ -19,7 +19,7 @@ function getConnection(cb) {
 
 	exports.pool.getConnection(function (err, dbCon) {
 		if (err) {
-			log.error(logPrefix + 'Could not get connection, err: ' + err.message);
+			exports.log.error(logPrefix + 'Could not get connection, err: ' + err.message);
 			return cb(err);
 		}
 
@@ -35,7 +35,7 @@ function getConnection(cb) {
 
 			dbCon.org_beginTransaction(function (err) {
 				if (err) {
-					log.error(subLogPrefix + err.message);
+					exports.log.error(subLogPrefix + err.message);
 					return cb(err);
 				}
 
@@ -50,7 +50,7 @@ function getConnection(cb) {
 
 			dbCon.org_commit(function (err) {
 				if (err) {
-					log.error(subLogPrefix + err.message);
+					exports.log.error(subLogPrefix + err.message);
 					return cb(err);
 				}
 
@@ -77,12 +77,12 @@ function getConnection(cb) {
 			startTime	= process.hrtime();
 
 			dbCon.org_query(sql, dbFields, function (err, rows) {
-				const	queryTime	= utils.hrtimeToMs(startTime, 4);
+				const	queryTime	= lUtils.hrtimeToMs(startTime, 4);
 
-				log.debug(subLogPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+				exports.log.debug(subLogPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
 
 				if (err) {
-					log.error(subLogPrefix + err.message, ', SQL: "' + err.sql + '"');
+					exports.log.error(subLogPrefix + err.message, ', SQL: "' + err.sql + '"');
 				}
 
 				cb(err, rows);
@@ -96,7 +96,7 @@ function getConnection(cb) {
 
 			dbCon.org_rollback(function (err) {
 				if (err) {
-					log.error(subLogPrefix + err.message);
+					exports.log.error(subLogPrefix + err.message);
 					return cb(err);
 				}
 
@@ -136,7 +136,7 @@ function query(sql, dbFields, options, cb) {
 
 		if (exports.pool === undefined) {
 			const	err	= new Error('No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
-			log.error(logPrefix + err.message);
+			exports.log.error(logPrefix + err.message);
 			return cb(err);
 		}
 
@@ -155,12 +155,12 @@ function query(sql, dbFields, options, cb) {
 		startTime	= process.hrtime();
 
 		exports.pool.query(sql, dbFields, function (err, rows, rowFields) {
-			const	queryTime	= utils.hrtimeToMs(startTime, 4);
+			const	queryTime	= lUtils.hrtimeToMs(startTime, 4);
 
 			if (conf.longQueryTime !== false && conf.longQueryTime < queryTime && options.ignoreLongQueryWarning !== true) {
-				log.warn(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+				exports.log.warn(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
 			} else {
-				log.debug(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+				exports.log.debug(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
 			}
 
 			// We log and handle plain database errors in a unified matter
@@ -172,18 +172,18 @@ function query(sql, dbFields, options, cb) {
 				if (conf.recoverableErrors.indexOf(err.code) !== - 1) {
 					options.retryNr = options.retryNr + 1;
 					if (options.retryNr <= conf.retries) {
-						log.warn(logPrefix + 'Retrying database recoverable error: ' + err.message + ' retryNr: ' + options.retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+						exports.log.warn(logPrefix + 'Retrying database recoverable error: ' + err.message + ' retryNr: ' + options.retryNr + ' SQL: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
 						setTimeout(function () {
 							query(sql, dbFields, {'retryNr': options.retryNr}, cb);
 						}, 50);
 						return;
 					}
 
-					log.error(logPrefix + 'Exhausted retries (' + options.retryNr + ') for database recoverable error: ' + err.message + ' SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
+					exports.log.error(logPrefix + 'Exhausted retries (' + options.retryNr + ') for database recoverable error: ' + err.message + ' SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
 					return cb(err);
 				}
 
-				log.error(logPrefix + 'Database error msg: ' + err.message + ', code: "' + err.code + '" SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
+				exports.log.error(logPrefix + 'Database error msg: ' + err.message + ', code: "' + err.code + '" SQL: "' + err.sql + '" dbFields: ' + JSON.stringify(dbFields));
 				return cb(err);
 			}
 
@@ -207,9 +207,8 @@ function removeAllTables(cb) {
 				tasks	= [];
 
 			if (err) {
-				log.error(logPrefix + 'Could not get a connection from the pool: ' + err.message);
-				cb(err);
-				return;
+				exports.log.error(logPrefix + 'Could not get a connection from the pool: ' + err.message);
+				return cb(err);
 			}
 
 			// Disalbe foreign key checks to be able to remove tables in any order
@@ -221,9 +220,8 @@ function removeAllTables(cb) {
 			tasks.push(function (cb) {
 				con.query('SHOW TABLES', function (err, rows) {
 					if (err) {
-						log.error(logPrefix + 'Error when running "SHOW TABLES": ' + err.message);
-						cb(err);
-						return;
+						exports.log.error(logPrefix + 'Error when running "SHOW TABLES": ' + err.message);
+						return cb(err);
 					}
 
 					for (let i = 0; rows[i] !== undefined; i ++) {
@@ -265,19 +263,61 @@ function removeAllTables(cb) {
 }
 
 function setup(thisConf, cb) {
-	const	logPrefix	= topLogPrefix + 'setup() - ',
+	const	validDbOptions	= [],
+		logPrefix	= topLogPrefix + 'setup() - ',
+		dbConf	= {},
 		tasks	= [];
+
+	validDbOptions.push('host');
+	validDbOptions.push('port');
+	validDbOptions.push('localAddress');
+	validDbOptions.push('socketPath');
+	validDbOptions.push('user');
+	validDbOptions.push('password');
+	validDbOptions.push('database');
+	validDbOptions.push('charset');
+	validDbOptions.push('timezone');
+	validDbOptions.push('connectTimeout');
+	validDbOptions.push('stringifyObjects');
+	validDbOptions.push('insecureAuth');
+	validDbOptions.push('typeCast');
+	validDbOptions.push('queryFormat');
+	validDbOptions.push('supportBigNumbers');
+	validDbOptions.push('bigNumberStrings');
+	validDbOptions.push('dateStrings');
+	validDbOptions.push('debug');
+	validDbOptions.push('trace');
+	validDbOptions.push('multipleStatements');
+	validDbOptions.push('flags');
+	validDbOptions.push('ssl');
+
+	// Valid for pools
+	validDbOptions.push('waitForConnections');
+	validDbOptions.push('connectionLimit');
+	validDbOptions.push('queueLimit');
 
 	exports.conf	= conf	= thisConf;
 
+	if ( ! exports.conf.log) {
+		exports.conf.log	= new lUtils.Log();
+	}
+
+	exports.log	= exports.conf.log;
+
+	for (const key of Object.keys(conf)) {
+		if (validDbOptions.indexOf(key) !== - 1) {
+			dbConf[key]	= conf[key];
+		}
+	}
+
 	function tryToConnect(cb) {
-		const	dbCon	= mysql.createConnection(conf);
+		const	dbCon	= mysql.createConnection(dbConf);
 
 		dbCon.connect(function (err) {
 			if (err) {
 				const	retryIntervalSeconds	= 1;
 
-				log.warn(logPrefix + 'Could not connect to database, retrying in ' + retryIntervalSeconds + ' seconds');
+				exports.log.warn(logPrefix + 'Could not connect to database, retrying in ' + retryIntervalSeconds + ' seconds');
 				return setTimeout(function () {
 					tryToConnect(cb);
 				}, retryIntervalSeconds * 1000);
@@ -294,10 +334,10 @@ function setup(thisConf, cb) {
 	// Start pool and check connection
 	tasks.push(function (cb) {
 		try {
-			exports.pool	= mysql.createPool(conf); // Expose pool
+			exports.pool	= mysql.createPool(dbConf); // Expose pool
 		} catch (err) {
-			log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
-			cb(err);
+			exports.log.error(logPrefix + 'Throwed error from database driver: ' + err.message);
+			return cb(err);
 		}
 
 		// Default to 3 retries on recoverable errors
@@ -323,9 +363,9 @@ function setup(thisConf, cb) {
 		// Make connection test to database
 		exports.pool.query('SELECT 1', function (err, rows) {
 			if (err || rows.length === 0) {
-				log.error(logPrefix + 'Database connection test failed!');
+				exports.log.error(logPrefix + 'Database connection test failed!');
 			} else {
-				log.info(logPrefix + 'Database connection test succeeded.');
+				exports.log.info(logPrefix + 'Database connection test succeeded.');
 			}
 
 			dbSetup	= true;
@@ -345,3 +385,4 @@ exports.query	= query;
 exports.ready	= ready;
 exports.removeAllTables	= removeAllTables;
 exports.setup	= setup;
+exports.log	= new lUtils.Log(); // Default to simple console log before anything else happends

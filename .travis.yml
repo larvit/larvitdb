@@ -26,7 +26,7 @@ before_script:
 script: mocha test/test.js -confFile=db_travis.json --exit
 
 addons:
-  mariadb: '10.0'
+  mariadb: '10.3'
   apt:
     sources:
     - ubuntu-toolchain-r-test

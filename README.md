@@ -19,7 +19,9 @@ The module must first be required and then configured.
 Make this in your main application file:
 
 ```javascript
-const db = require('larvitdb');
+const winston = require('winston'),
+      log     = winston.createLogger({'transports': [new winston.transports.Console()]}),
+      db      = require('larvitdb');
 
 db.setup({
 	'host':              '127.0.0.1',                   // Do not use with socketPath
@@ -29,7 +31,8 @@ db.setup({
 	'password':          'bar',
 	'charset':           'utf8_general_ci',
 	'supportBigNumbers': true,
-	'database':          'my_database_name'
+	'database':          'my_database_name',
+	'log':               log                            // Will default to a simple console logger if not provided
 });
 ```
 

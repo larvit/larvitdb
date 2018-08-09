@@ -1,19 +1,12 @@
 'use strict';
 
 const	assert	= require('assert'),
+	LUtils	= require('larvitutils'),
+	lUtils	= new LUtils(),
 	async	= require('async'),
-	log	= require('winston'),
+	log	= new lUtils.Log('warn'),
 	db	= require('../larvitdb.js'),
 	fs	= require('fs');
-
-// Set up winston
-log.remove(log.transports.Console);
-log.add(log.transports.Console, {
-	'level':	'warn',
-	'colorize':	true,
-	'timestamp':	true,
-	'json':	false
-});
 
 before(function (done) {
 	let	confFile;
@@ -28,9 +21,14 @@ before(function (done) {
 	}
 
 	function runDbSetup(confFile) {
+		let	conf;
+
 		log.verbose('DB config: ' + JSON.stringify(require(confFile)));
 
-		db.setup(require(confFile), function (err) {
+		conf	= require(confFile);
+		conf.log	= log;
+
+		db.setup(conf, function (err) {
 			if (err) throw err;
 
 			checkEmptyDb();
