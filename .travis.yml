@@ -6,8 +6,8 @@ env:
 node_js:
   - 6
   - 8
-  - 9
   - 10
+  - 11
 
 notifications:
   email:
@@ -23,7 +23,7 @@ install:
 before_script:
   - mysql -e 'CREATE DATABASE test'
 
-script: mocha test/test.js -confFile=db_travis.json --exit
+script: CONFFILE=db_travis.json mocha
 
 addons:
   mariadb: '10.3'

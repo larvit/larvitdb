@@ -35,10 +35,10 @@ before(function (done) {
 		});
 	}
 
-	if (process.argv[3] === undefined) {
+	if (process.env.CONFFILE === undefined) {
 		confFile	= __dirname + '/../config/db_test.json';
 	} else {
-		confFile	= process.argv[3].split('=')[1];
+		confFile	= process.env.CONFFILE;
 	}
 
 	log.verbose('DB config file: "' + confFile + '"');
@@ -58,6 +58,10 @@ before(function (done) {
 			runDbSetup(confFile);
 		}
 	});
+});
+
+after(function (done) {
+	db.pool.end(done);
 });
 
 describe('Db tests', function () {
