@@ -44,12 +44,10 @@ class Db {
 		this.eventEmitter.setMaxListeners(50); // There is no problem with a lot of listeneres on this one
 
 		this.dbIsReady = false;
-
-		this.connect();
 	}
 
 	/**
-	 * Connect to the database (will be called by the constructor)
+	 * Connect to the database
 	 *
 	 * @return {promise} - resolves if connected
 	 */
@@ -105,10 +103,9 @@ class Db {
 
 				that.log.warn(subLogPrefix + 'Could not connect to database, retrying in ' + retryIntervalSeconds + ' seconds. err: ' + err.message);
 
-				return setTimeout(
-					() => tryToConnect().then(resolve),
-					retryIntervalSeconds * 1000
-				);
+				await lUtils.setTimeout(retryIntervalSeconds * 1000);
+
+				return await tryToConnect();
 			}
 		}
 
@@ -255,7 +252,7 @@ class Db {
 	async ready() {
 		if (this.dbIsReady) return;
 
-		return new Promise((resolve) => this.eventEmitter.once('dbIsReady', resolve));
+		return new Promise(resolve => this.eventEmitter.once('dbIsReady', resolve));
 	}
 
 	async removeAllTables() {

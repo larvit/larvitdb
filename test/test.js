@@ -32,7 +32,7 @@ before(done => {
 		conf.log = log;
 
 		db = new Db(conf);
-		db.ready().then(() => {
+		db.connect().then(() => {
 			checkEmptyDb();
 		});
 	}
