@@ -106,7 +106,7 @@ class Db {
 				that.log.warn(subLogPrefix + 'Could not connect to database, retrying in ' + retryIntervalSeconds + ' seconds. err: ' + err.message);
 
 				return setTimeout(
-					tryToConnect().then(resolve),
+					() => tryToConnect().then(resolve),
 					retryIntervalSeconds * 1000
 				);
 			}
