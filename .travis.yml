@@ -23,7 +23,7 @@ install:
 before_script:
   - mysql -e 'CREATE DATABASE test'
 
-script: CONFFILE=db_travis.json mocha
+script: npm test
 
 addons:
   mariadb: '10.3'

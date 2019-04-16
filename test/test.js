@@ -1,55 +1,59 @@
 'use strict';
 
-const	assert	= require('assert'),
-	LUtils	= require('larvitutils'),
-	lUtils	= new LUtils(),
-	async	= require('async'),
-	log	= new lUtils.Log('warn'),
-	db	= require('../larvitdb.js'),
-	fs	= require('fs');
+const assert = require('assert');
+const LUtils = require('larvitutils');
+const lUtils = new LUtils();
+const log = new lUtils.Log('warn');
+const Db = require('../index.js');
+const fs = require('fs');
 
-before(function (done) {
-	let	confFile;
+let db;
+
+Error.stackTraceLimit = 10;
+
+before(done => {
+	let confFile;
 
 	function checkEmptyDb() {
-		db.query('SHOW TABLES', function (err, rows) {
-			if (err)	throw err;
-			if (rows.length)	throw new Error('Database is not empty. To make a test, you must supply an empty database!');
+		db.query('SHOW TABLES', (err, rows) => {
+			if (err) throw err;
+			if (rows.length) throw new Error('Database is not empty. To make a test, you must supply an empty database!');
 
 			done();
 		});
 	}
 
 	function runDbSetup(confFile) {
-		let	conf;
+		let conf;
 
 		log.verbose('DB config: ' + JSON.stringify(require(confFile)));
 
-		conf	= require(confFile);
-		conf.log	= log;
+		conf = require(confFile);
+		conf.log = log;
 
-		db.setup(conf, function (err) {
-			if (err) throw err;
-
+		db = new Db(conf);
+		db.ready().then(() => {
 			checkEmptyDb();
 		});
 	}
 
-	if (process.env.CONFFILE === undefined) {
-		confFile	= __dirname + '/../config/db_test.json';
+	if (process.env.TRAVIS) {
+		confFile = __dirname + '/../config/db_travis.json';
+	} else if (process.env.CONFFILE) {
+		confFile = process.env.CONFFILE;
 	} else {
-		confFile	= process.env.CONFFILE;
+		confFile = __dirname + '/../config/db_test.json';
 	}
 
 	log.verbose('DB config file: "' + confFile + '"');
 
-	fs.stat(confFile, function (err) {
-		const	altConfFile	= __dirname + '/../config/' + confFile;
+	fs.stat(confFile, err => {
+		const altConfFile = __dirname + '/../config/' + confFile;
 
 		if (err) {
 			log.info('Failed to find config file "' + confFile + '", retrying with "' + altConfFile + '"');
 
-			fs.stat(altConfFile, function (err) {
+			fs.stat(altConfFile, err => {
 				if (err) throw err;
 
 				runDbSetup(altConfFile);
@@ -60,305 +64,157 @@ before(function (done) {
 	});
 });
 
-after(function (done) {
-	db.pool.end(done);
+after(done => {
+	(new Promise(async resolve => {
+		await db.pool.end();
+		resolve();
+	})).then(done);
 });
 
 describe('Db tests', function () {
-	function dbTests(dbCon, cb) {
-		const	tasks	= [];
+	async function dbTests(dbCon) {
+		await dbCon.query('CREATE TABLE `fjant` (`test` int NOT NULL) ENGINE=\'InnoDB\';');
+		await dbCon.query('INSERT INTO `fjant` VALUES(13);');
 
-		tasks.push(function (cb) {
-			dbCon.query('CREATE TABLE `fjant` (`test` int NOT NULL) ENGINE=\'InnoDB\';', cb);
-		});
+		const testFromFjant = await dbCon.query('SELECT test FROM fjant');
 
-		tasks.push(function (cb) {
-			dbCon.query('INSERT INTO `fjant` VALUES(13);', cb);
-		});
+		assert.strictEqual(testFromFjant.rows.length, 1);
+		assert.strictEqual(testFromFjant.rows[0].test, 13);
 
-		tasks.push(function (cb) {
-			dbCon.query('SELECT test FROM fjant', function (err, rows) {
-				if (err) throw err;
-				assert.strictEqual(rows.length,	1);
-				assert.strictEqual(rows[0].test,	13);
-				cb(err);
-			});
-		});
+		await dbCon.query('UPDATE fjant SET test = ?', 7);
+		const testFromFjantAgain = await dbCon.query('SELECT test FROM fjant');
+		assert.strictEqual(testFromFjantAgain.rows.length, 1);
+		assert.strictEqual(testFromFjantAgain.rows[0].test, 7);
 
-		tasks.push(function (cb) {
-			dbCon.query('UPDATE fjant SET test = ?', [7], function (err) {
-				if (err) throw err;
-				dbCon.query('SELECT test FROM fjant', function (err, rows) {
-					if (err) throw err;
-					assert.strictEqual(rows.length,	1);
-					assert.strictEqual(rows[0].test,	7);
-					cb(err);
-				});
-			});
-		});
+		await dbCon.query('DELETE FROM fjant');
+		const testFromFjantLast = await dbCon.query('SELECT test FROM fjant');
+		assert.strictEqual(testFromFjantLast.rows.length, 0);
 
-		tasks.push(function (cb) {
-			dbCon.query('DELETE FROM fjant', function (err) {
-				if (err) throw err;
-				dbCon.query('SELECT test FROM fjant', function (err, rows) {
-					if (err) throw err;
-					assert.strictEqual(rows.length,	0);
-					cb(err);
-				});
-			});
-		});
-
-		tasks.push(function (cb) {
-			dbCon.query('DROP TABLE fjant', cb);
-		});
-
-		async.series(tasks, function (err) {
-			if (err) throw err;
-			cb();
-		});
+		await dbCon.query('DROP TABLE fjant');
 	}
 
-	it('Simple queries', function (done) {
-		dbTests(db, done);
+	it('Simple queries', done => {
+		dbTests(db).then(done);
 	});
 
-	it('Queries on a single connection from the pool', function (done) {
-		db.getConnection(function (err, dbCon) {
-			if (err) throw err;
-			dbTests(dbCon, done);
+	it('Queries on a single connection from the pool', done => {
+		db.getConnection().then(dbCon => {
+			dbTests(dbCon).then(done);
 		});
 	});
 
-	it('Transactions', function (done) {
-		const	tasks	= [];
+	it('Remove all tables from database', done => {
+		async function runTest() {
 
-		tasks.push(function (cb) {
-			db.query('CREATE TABLE `foobar` (`baz` int);', cb);
-		});
+			// Create tables with internal relations
+			await db.query(`CREATE TABLE foo (
+					id int(11) NOT NULL AUTO_INCREMENT,
+					name int(11) NOT NULL,
+					PRIMARY KEY (id)
+				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
 
-		tasks.push(function (cb) {
-			db.query('INSERT INTO foobar VALUES(5)', cb);
-		});
-
-		// Successfull transaction
-		tasks.push(function (cb) {
-			db.getConnection(function (err, dbCon) {
-				if (err) throw err;
-
-				dbCon.beginTransaction(function (err) {
-					if (err) throw err;
-
-					dbCon.query('INSERT INTO foobar VALUES(5)', function (err) {
-						if (err) throw err;
-
-						// If an error occurred in the queries, in a production environment
-						// a rollback should be performed...
-
-						dbCon.commit(function (err) {
-							if (err) throw err;
-
-							cb(err);
-						});
-					});
-				});
-			});
-		});
-
-		// Rolled back transaction
-		tasks.push(function (cb) {
-			db.getConnection(function (err, dbCon) {
-				if (err) throw err;
-
-				dbCon.beginTransaction(function (err) {
-					if (err) throw err;
-
-					dbCon.query('INSERT INTO foobar VALUES(5)', function (err) {
-						if (err) throw err;
-
-						dbCon.rollback(function (err) {
-							if (err) throw err;
-
-							cb(err);
-						});
-					});
-				});
-			});
-		});
-
-		// Since we have 1 normal insert with value of 5, then a transaction insert
-		// also of 5, and then a rolled back transaction of 5, the sum should be
-		// 5 + (5 - 5) + 5 = 10
-		tasks.push(function (cb) {
-			db.query('SELECT SUM(baz) AS bazSum FROM foobar', function (err, rows) {
-				if (err) throw err;
-				assert.strictEqual(Number(rows[0].bazSum),	10);
-				cb(err);
-			});
-		});
-
-		tasks.push(function (cb) {
-			db.query('DROP TABLE foobar', cb);
-		});
-
-		async.series(tasks, done);
-	});
-
-	it('Remove all tables from database', function (done) {
-		const tasks = [];
-
-		// Create tables with internal relations
-		tasks.push(function (cb) {
-			db.query(`CREATE TABLE foo (
-				id int(11) NOT NULL AUTO_INCREMENT,
-				name int(11) NOT NULL,
-				PRIMARY KEY (id)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`, cb);
-		});
-
-		tasks.push(function (cb) {
-			db.query(`CREATE TABLE bar (
+			await db.query(`CREATE TABLE bar (
 					fooId int(11) NOT NULL,
 					stuff varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
 					KEY fooId (fooId),
 					CONSTRAINT bar_ibfk_1 FOREIGN KEY (fooId) REFERENCES foo (id)
-				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`, cb);
-		});
+				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
 
-		// Try to remove all tables from the database
-		tasks.push(function (cb) {
-			db.removeAllTables(cb);
-		});
 
-		// Check so no tables exists
-		tasks.push(function (cb) {
-			db.query('SHOW TABLES', function (err, rows) {
-				if (err) throw err;
-				assert.strictEqual(rows.length,	0);
-				cb();
-			});
-		});
+			// Try to remove all tables from the database
+			await db.removeAllTables();
 
-		async.series(tasks, done);
+			// Check so no tables exists
+			const result = await db.query('SHOW TABLES');
+			assert.strictEqual(result.rows.length, 0);
+			done();
+		}
+
+		runTest();
 	});
 
-	it('Stream rows', function (done) {
-		const	tasks	= [];
+	it('Stream rows', done => {
+		(new Promise(async resolve => {
+			let rowNr = 0;
 
-		let	rowNr	= 0,
-			dbCon;
+			// Create table with data
+			await db.query('CREATE TABLE `plutt` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `name` varchar(191) NOT NULL);');
+			await db.query('INSERT INTO plutt (name) VALUES(\'bosse\'),(\'hasse\'),(\'vråkbert\');');
 
-		// Create table with data
-		tasks.push(function (cb) {
-			db.query('CREATE TABLE `plutt` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `name` varchar(191) NOT NULL);', cb);
-		});
-		tasks.push(function (cb) {
-			db.query('INSERT INTO plutt (name) VALUES(\'bosse\'),(\'hasse\'),(\'vråkbert\');', cb);
-		});
+			// Get dbCon
+			const dbCon = await db.getConnection();
 
-		// Get dbCon
-		tasks.push(function (cb) {
-			db.pool.getConnection(function (err, result) {
-				dbCon	= result;
-				cb(err);
-			});
-		});
+			// Check contents
+			const query = db.streamQuery('SELECT * FROM plutt');
 
-		// Check contents
-		tasks.push(function (cb) {
-			const	query	= dbCon.query('SELECT * FROM plutt');
-
-			query.on('error', function (err) {
+			query.on('error', err => {
 				throw err;
 			});
 
-			query.on('fields', function (fields) {
-				assert.strictEqual(fields[0].name,	'id');
-				assert.strictEqual(fields[1].name,	'name');
+			query.on('fields', fields => {
+				assert.strictEqual(fields[0].name, 'id');
+				assert.strictEqual(fields[1].name, 'name');
 			});
 
-			query.on('result', function (row) {
+			query.on('result', row => {
 				dbCon.pause(); // Pause streaming while handling row
 
-				rowNr ++;
+				rowNr++;
 
 				if (rowNr === 1) {
-					assert.strictEqual(row.id,	1);
-					assert.strictEqual(row.name,	'bosse');
+					assert.strictEqual(row.id, 1);
+					assert.strictEqual(row.name, 'bosse');
 				} else if (rowNr === 2) {
-					assert.strictEqual(row.id,	2);
-					assert.strictEqual(row.name,	'hasse');
+					assert.strictEqual(row.id, 2);
+					assert.strictEqual(row.name, 'hasse');
 				} else if (rowNr === 2) {
-					assert.strictEqual(row.id,	3);
-					assert.strictEqual(row.name,	'vråkbert');
+					assert.strictEqual(row.id, 3);
+					assert.strictEqual(row.name, 'vråkbert');
 				}
 
 				dbCon.resume(); // Resume streaming when processing of row is done (this is normally done in async, doh)
 			});
 
-			query.on('end', function () {
-				assert.strictEqual(rowNr,	3);
+			query.on('end', async () => {
+				assert.strictEqual(rowNr, 3);
 				dbCon.release();
-				cb();
+
+				await db.removeAllTables();
+
+				resolve();
 			});
-		});
-
-		// Clear database
-		tasks.push(function (cb) {
-			db.removeAllTables(cb);
-		});
-
-		async.series(tasks, function (err) {
-			if (err) throw err;
-			done();
-		});
+		})).then(done);
 	});
 
-	it('Time zone dependent data', function (done) {
-		const	tasks	= [];
+	it('Time zone dependent data', done => {
+		(new Promise(async resolve => {
+			// Create table
+			const sql = 'CREATE TABLE tzstuff (id int(11), tzstamp timestamp, tzdatetime datetime);';
+			await db.query(sql);
 
-		// Create table
-		tasks.push(function (cb) {
-			const	sql	= 'CREATE TABLE tzstuff (id int(11), tzstamp timestamp, tzdatetime datetime);';
-			db.query(sql, cb);
-		});
+			// Set datetime as javascript Date object
+			const dateObj = new Date('2018-03-04T17:38:20Z');
+			await	db.query('INSERT INTO tzstuff VALUES(?,?,?);', [1, dateObj, dateObj]);
 
-		// Set datetime as javascript Date object
-		tasks.push(function (cb) {
-			const	dateObj	= new Date('2018-03-04T17:38:20Z');
-			db.query('INSERT INTO tzstuff VALUES(?,?,?);', [1, dateObj, dateObj], cb);
-		});
+			// Check the values
+			const result = await db.query('SELECT * FROM tzstuff ORDER BY id');
+			let foundRows = 0;
 
-		// Check the values
-		tasks.push(function (cb) {
-			db.query('SELECT * FROM tzstuff ORDER BY id', function (err, rows) {
-				let	foundRows	= 0;
+			for (let i = 0; result.rows[i] !== undefined; i++) {
+				const row = result.rows[i];
 
-				if (err) throw err;
-
-				for (let i = 0; rows[i] !== undefined; i ++) {
-					const	row	= rows[i];
-
-					if (row.id === 1) {
-						foundRows ++;
-						assert.strictEqual(row.tzstamp.toISOString(),	'2018-03-04T17:38:20.000Z');
-						assert.strictEqual(row.tzdatetime.toISOString(),	'2018-03-04T17:38:20.000Z');
-					}
+				if (row.id === 1) {
+					foundRows++;
+					assert.strictEqual(row.tzstamp.toISOString(), '2018-03-04T17:38:20.000Z');
+					assert.strictEqual(row.tzdatetime.toISOString(), '2018-03-04T17:38:20.000Z');
 				}
+			}
 
-				assert.strictEqual(foundRows,	1);
+			assert.strictEqual(foundRows, 1);
 
-				cb();
-			});
-		});
-
-		// Remove table
-		tasks.push(function (cb) {
-			db.query('DROP TABLE tzstuff;', cb);
-		});
-
-		async.series(tasks, function (err) {
-			if (err) throw err;
-			done();
-		});
+			// Remove table
+			await db.query('DROP TABLE tzstuff;');
+			resolve();
+		})).then(done);
 	});
 });
