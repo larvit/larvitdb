@@ -31,7 +31,6 @@ const db = new Db({
 	log:               log                            // Logging object. Will default to a simple console logger if not provided
 	// See list of native options [here](https://github.com/felixge/node-mysql/#connection-options).
 });
-await db.connect();
 ```
 
 ### Important about time zones!
@@ -50,7 +49,7 @@ However, please note that all date time you get back from the database will be i
 
 ### Check if database connection is ready
 
-To see when the database connection is ready to recieve commands. After "await db.connect();" the database is always ready. This is for other parts of the application where one wants to know if the database is ready.
+To see when the database connection is ready to recieve commands. Will automatically connect if that is not done already.
 
 ```javascript
 await db.ready();
@@ -168,9 +167,6 @@ await db.removeAllTables();
 ```
 
 ## Version history
-
-### 3.1.0
-* Moved connect() away from the constructor
 
 ### 3.0.0
 * Redesign of initialization to not be a singleton

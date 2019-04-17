@@ -44,6 +44,7 @@ class Db {
 		this.eventEmitter.setMaxListeners(50); // There is no problem with a lot of listeneres on this one
 
 		this.dbIsReady = false;
+		this.connecting = false;
 	}
 
 	/**
@@ -251,6 +252,11 @@ class Db {
 	 */
 	async ready() {
 		if (this.dbIsReady) return;
+
+		if (!this.connecting) {
+			this.connectiong = true;
+			this.connect();
+		}
 
 		return new Promise(resolve => this.eventEmitter.once('dbIsReady', resolve));
 	}
