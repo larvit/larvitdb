@@ -11,7 +11,7 @@
     "mysql2": "1.6.5"
   },
   "devDependencies": {
-    "mocha": "6.1.3",
+    "mocha": "6.1.4",
     "mocha-eslint": "5.0.0"
   },
   "scripts": {
