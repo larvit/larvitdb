@@ -17,9 +17,14 @@ before(done => {
 	function checkEmptyDb() {
 		db.query('SHOW TABLES', (err, rows) => {
 			if (err) throw err;
-			if (rows.length) throw new Error('Database is not empty. To make a test, you must supply an empty database!');
+			if (rows.length) {
+				// Remove tables
+				const dropTableQuery = 'DROP TABLE ' + rows.map(x => x.Tables_in_test).join(',');
 
-			done();
+				db.query(dropTableQuery, done);
+			} else {
+				done();
+			}
 		});
 	}
 
@@ -188,29 +193,42 @@ describe('Db tests', function () {
 
 	it('Time zone dependent data', done => {
 		(new Promise(async resolve => {
+			const dates	= [];
+
 			// Create table
-			const sql = 'CREATE TABLE tzstuff (id int(11), tzstamp timestamp, tzdatetime datetime);';
+			const sql = 'CREATE TABLE tzstuff (id int(11), text varchar(191), tzstamp timestamp, tzdatetime DATETIME);';
 			await db.query(sql);
 
-			// Set datetime as javascript Date object
-			const dateObj = new Date('2018-03-04T17:38:20Z');
-			await	db.query('INSERT INTO tzstuff VALUES(?,?,?);', [1, dateObj, dateObj]);
+			// Set datetime as javascript Date object UTC
+			dates.push(new Date('2018-05-04T17:38:20Z'));
+			await	db.query('INSERT INTO tzstuff VALUES(?,?,?,?);', [1, '', dates[dates.length - 1], dates[dates.length - 1]]);
+
+			// Set date as javascript Date object
+			dates.push(new Date('2018-05-04 17:38:20'));
+			await	db.query('INSERT INTO tzstuff VALUES(?,?,?,?);', [2, null, dates[dates.length - 1], dates[dates.length - 1]]);
+
+			// Set date as javascript Date object
+			dates.push('2018-05-04 17:38:20');
+			await	db.query('INSERT INTO tzstuff VALUES(?,?,?,?);', [3, undefined, dates[dates.length - 1], dates[dates.length - 1]]);
 
 			// Check the values
 			const result = await db.query('SELECT * FROM tzstuff ORDER BY id');
-			let foundRows = 0;
 
 			for (let i = 0; result.rows[i] !== undefined; i++) {
 				const row = result.rows[i];
+				const date = dates[i] instanceof Date ? dates[i].toISOString().replace('T', ' ').replace('Z', '').substring(0, 19) : dates[i];
 
-				if (row.id === 1) {
-					foundRows++;
-					assert.strictEqual(row.tzstamp.toISOString(), '2018-03-04T17:38:20.000Z');
-					assert.strictEqual(row.tzdatetime.toISOString(), '2018-03-04T17:38:20.000Z');
+				if (row.tzstamp instanceof Date) {
+					const err = new Error('dateStrings is not set to true in db config');
+					throw err;
 				}
+
+				assert.equal(row.tzstamp, date);
+				assert.equal(row.tzdatetime, date);
 			}
 
-			assert.strictEqual(foundRows, 1);
+			assert.strictEqual(result.rows.length, dates.length);
+
 
 			// Remove table
 			await db.query('DROP TABLE tzstuff;');

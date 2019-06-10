@@ -171,12 +171,10 @@ class Db {
 
 			// Convert datetimes to UTC
 			if (Array.isArray(dbFields)) {
-				for (let i = 0; dbFields[i] !== undefined; i++) {
-					if (typeof dbFields[i] === Date) {
-						const dbField = dbFields[i];
-						dbField = dbField.toISOString();
-						dbField[10] = ' '; // Replace T with a space
-						dbField = dbField.substring(0, dbField.length - 1);	// Cut the last Z off
+				for (let i = 0; i < dbFields.length; i++) {
+					if (dbFields[i] instanceof Date) {
+						let	dbField	= dbFields[i].toISOString();
+						dbFields[i]	= (dbField.substring(0, 10) + ' ' + dbField.slice(11)).substring(0, 19); // Replace T with ' ' and cut the last Z off
 					}
 				}
 			}
