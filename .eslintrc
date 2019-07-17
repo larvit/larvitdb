@@ -50,6 +50,7 @@
     "no-redeclare": ["error"],
     "no-sequences": ["error"],
     "no-shadow": ["off"],
+    "no-tabs": ["error", { "allowIndentationTabs": true }],
     "no-trailing-spaces": ["error", {"ignoreComments": true}],
     "no-underscore-dangle": ["off"],
     "no-unexpected-multiline": ["error"],
