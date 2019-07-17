@@ -1,21 +1,24 @@
 {
   "name": "larvitdb",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "DB wrapper module for node.js",
   "main": "index.js",
   "directories": {
     "test": "test"
   },
   "dependencies": {
-    "larvitutils": "^2.2.0",
+    "larvitutils": "2.3.0",
     "mysql2": "1.6.5"
   },
   "devDependencies": {
-    "mocha": "6.1.4",
-    "mocha-eslint": "5.0.0"
+    "coveralls": "3.0.4",
+    "eslint": "6.0.1",
+    "nyc": "14.1.1",
+    "tape": "4.11.0",
+    "tape-eslint": "1.2.1"
   },
   "scripts": {
-    "test": "mocha --exit"
+    "test": "npx tape test/*"
   },
   "repository": {
     "type": "git",

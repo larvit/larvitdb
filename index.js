@@ -177,7 +177,7 @@ class Db {
 						const dbField = dbFields[i];
 						dbField = dbField.toISOString();
 						dbField[10] = ' '; // Replace T with a space
-						dbField = dbField.substring(0, dbField.length - 1);	// Cut the last Z off
+						dbField = dbField.substring(0, dbField.length - 1); // Cut the last Z off
 					}
 				}
 			}
