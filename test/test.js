@@ -36,16 +36,14 @@ async function dbTests(dbCon) {
 test('Setup db and do checks', t => {
 	let confFile;
 
-	function checkEmptyDb() {
-		db.query('SHOW TABLES', (err, rows) => {
-			if (err) throw err;
-			if (rows.length) throw new Error('Database is not empty. To make a test, you must supply an empty database!');
+	async function checkEmptyDb() {
+		const { rows } = await db.query('SHOW TABLES');
+		if (rows.length) throw new Error('Database is not empty. To make a test, you must supply an empty database!');
 
-			t.end();
-		});
+		t.end();
 	}
 
-	function runDbSetup(confFile) {
+	async function runDbSetup(confFile) {
 		let conf;
 
 		log.verbose('DB config: ' + JSON.stringify(require(confFile)));
@@ -54,7 +52,8 @@ test('Setup db and do checks', t => {
 		conf.log = log;
 
 		db = new Db(conf);
-		db.ready().then(checkEmptyDb);
+		await db.ready();
+		await checkEmptyDb();
 	}
 
 	if (process.env.TRAVIS) {
@@ -85,141 +84,129 @@ test('Setup db and do checks', t => {
 });
 
 
-test('Simple queries', t => {
-	dbTests(db).then(() => t.end());
+test('Simple queries', async (t) => {
+	await dbTests(db);
+	t.end();
 });
 
-test('Queries on a single connection from the pool', t => {
-	db.getConnection().then(dbCon => {
-		dbTests(dbCon).then(() => t.end());
+test('Queries on a single connection from the pool', async (t) => {
+	const dbCon = await db.getConnection();
+	await dbTests(dbCon);
+	t.end();
+});
+
+test('Remove all tables from database', async (t) => {
+	// Create tables with internal relations
+	await db.query(`CREATE TABLE foo (
+			id int(11) NOT NULL AUTO_INCREMENT,
+			name int(11) NOT NULL,
+			PRIMARY KEY (id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
+
+	await db.query(`CREATE TABLE bar (
+			fooId int(11) NOT NULL,
+			stuff varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+			KEY fooId (fooId),
+			CONSTRAINT bar_ibfk_1 FOREIGN KEY (fooId) REFERENCES foo (id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
+
+
+	// Try to remove all tables from the database
+	await db.removeAllTables();
+
+	// Check so no tables exists
+	const result = await db.query('SHOW TABLES');
+	assert.strictEqual(result.rows.length, 0);
+	t.end();
+});
+
+test('Stream rows', async (t) => {
+	let rowNr = 0;
+
+	// Create table with data
+	await db.query('CREATE TABLE `plutt` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `name` varchar(191) NOT NULL);');
+	await db.query('INSERT INTO plutt (name) VALUES(\'bosse\'),(\'hasse\'),(\'vråkbert\');');
+
+	// Get dbCon
+	const dbCon = await db.getConnection();
+
+	// Check contents
+	const query = db.streamQuery('SELECT * FROM plutt');
+
+	query.on('error', err => {
+		throw err;
 	});
-});
 
-test('Remove all tables from database', t => {
-	async function runTest() {
+	query.on('fields', fields => {
+		assert.strictEqual(fields[0].name, 'id');
+		assert.strictEqual(fields[1].name, 'name');
+	});
 
-		// Create tables with internal relations
-		await db.query(`CREATE TABLE foo (
-				id int(11) NOT NULL AUTO_INCREMENT,
-				name int(11) NOT NULL,
-				PRIMARY KEY (id)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
+	query.on('result', row => {
+		dbCon.pause(); // Pause streaming while handling row
 
-		await db.query(`CREATE TABLE bar (
-				fooId int(11) NOT NULL,
-				stuff varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-				KEY fooId (fooId),
-				CONSTRAINT bar_ibfk_1 FOREIGN KEY (fooId) REFERENCES foo (id)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
+		rowNr++;
 
-
-		// Try to remove all tables from the database
-		await db.removeAllTables();
-
-		// Check so no tables exists
-		const result = await db.query('SHOW TABLES');
-		assert.strictEqual(result.rows.length, 0);
-		t.end();
-	}
-
-	runTest();
-});
-
-test('Stream rows', t => {
-	(new Promise(async resolve => {
-		let rowNr = 0;
-
-		// Create table with data
-		await db.query('CREATE TABLE `plutt` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `name` varchar(191) NOT NULL);');
-		await db.query('INSERT INTO plutt (name) VALUES(\'bosse\'),(\'hasse\'),(\'vråkbert\');');
-
-		// Get dbCon
-		const dbCon = await db.getConnection();
-
-		// Check contents
-		const query = db.streamQuery('SELECT * FROM plutt');
-
-		query.on('error', err => {
-			throw err;
-		});
-
-		query.on('fields', fields => {
-			assert.strictEqual(fields[0].name, 'id');
-			assert.strictEqual(fields[1].name, 'name');
-		});
-
-		query.on('result', row => {
-			dbCon.pause(); // Pause streaming while handling row
-
-			rowNr++;
-
-			if (rowNr === 1) {
-				assert.strictEqual(row.id, 1);
-				assert.strictEqual(row.name, 'bosse');
-			} else if (rowNr === 2) {
-				assert.strictEqual(row.id, 2);
-				assert.strictEqual(row.name, 'hasse');
-			} else if (rowNr === 2) {
-				assert.strictEqual(row.id, 3);
-				assert.strictEqual(row.name, 'vråkbert');
-			}
-
-			dbCon.resume(); // Resume streaming when processing of row is done (this is normally done in async, doh)
-		});
-
-		query.on('end', async () => {
-			assert.strictEqual(rowNr, 3);
-			dbCon.release();
-
-			await db.removeAllTables();
-
-			resolve();
-		});
-	})).then(() => t.end());
-});
-
-test('Time zone dependent data', t => {
-	(new Promise(async resolve => {
-		// Create table
-		const sql = 'CREATE TABLE tzstuff (id int(11), tzstamp timestamp, tzdatetime datetime);';
-		await db.query(sql);
-
-		// Set datetime as javascript Date object
-		const dateObj = new Date('2018-03-04T17:38:20Z');
-		await db.query('INSERT INTO tzstuff VALUES(?,?,?);', [1, dateObj, dateObj]);
-
-		// Check the values
-		const result = await db.query('SELECT * FROM tzstuff ORDER BY id');
-		let foundRows = 0;
-
-		for (let i = 0; result.rows[i] !== undefined; i++) {
-			const row = result.rows[i];
-
-			if (row.id === 1) {
-				foundRows++;
-				assert.strictEqual(row.tzstamp.toISOString(), '2018-03-04T17:38:20.000Z');
-				assert.strictEqual(row.tzdatetime.toISOString(), '2018-03-04T17:38:20.000Z');
-			}
+		if (rowNr === 1) {
+			assert.strictEqual(row.id, 1);
+			assert.strictEqual(row.name, 'bosse');
+		} else if (rowNr === 2) {
+			assert.strictEqual(row.id, 2);
+			assert.strictEqual(row.name, 'hasse');
+		} else if (rowNr === 2) {
+			assert.strictEqual(row.id, 3);
+			assert.strictEqual(row.name, 'vråkbert');
 		}
 
-		assert.strictEqual(foundRows, 1);
+		dbCon.resume(); // Resume streaming when processing of row is done (this is normally done in async, doh)
+	});
 
-		// Remove table
-		await db.query('DROP TABLE tzstuff;');
-		resolve();
-	})).then(() => t.end());
+	query.on('end', async () => {
+		assert.strictEqual(rowNr, 3);
+		dbCon.release();
+
+		await db.removeAllTables();
+
+		t.end();
+	});
 });
 
-test('Close the db pool', t => {
-	(new Promise(async resolve => {
-		await db.pool.end();
+test('Time zone dependent data', async (t) => {
+	// Create table
+	const sql = 'CREATE TABLE tzstuff (id int(11), tzstamp timestamp, tzdatetime datetime);';
+	await db.query(sql);
 
-		// There are several active handles at this stage, don't know why
-		// process._getActiveHandles()[0];
+	// Set datetime as javascript Date object
+	const dateObj = new Date('2018-03-04T17:38:20Z');
+	await db.query('INSERT INTO tzstuff VALUES(?,?,?);', [1, dateObj, dateObj]);
 
-		resolve();
-	})).then(() => {
-		t.end();
-		process.exit();
-	});
+	// Check the values
+	const result = await db.query('SELECT * FROM tzstuff ORDER BY id');
+	let foundRows = 0;
+
+	for (let i = 0; result.rows[i] !== undefined; i++) {
+		const row = result.rows[i];
+
+		if (row.id === 1) {
+			foundRows++;
+			assert.strictEqual(row.tzstamp.toISOString(), '2018-03-04T17:38:20.000Z');
+			assert.strictEqual(row.tzdatetime.toISOString(), '2018-03-04T17:38:20.000Z');
+		}
+	}
+
+	assert.strictEqual(foundRows, 1);
+
+	// Remove table
+	await db.query('DROP TABLE tzstuff;');
+	t.end();
+});
+
+test('Close the db pool', async (t) => {
+	await db.pool.end();
+
+	// There are several active handles at this stage, don't know why
+	// process._getActiveHandles()[0];
+
+	t.end();
+	process.exit();
 });

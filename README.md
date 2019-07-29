@@ -170,6 +170,12 @@ await db.removeAllTables();
 
 ## Version history
 
+### 3.1.0
+* Added verbose level logging of data changing SQL queries
+* Rewrote several tests for better async/await
+* Fixed issues with streaming queries that was not logged at all
+* Fixed issues with streaming queries did not have its database fields formatted
+
 ### 3.0.0
 * Redesign of initialization to not be a singleton
 * Promisify everything

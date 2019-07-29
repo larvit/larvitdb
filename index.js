@@ -157,7 +157,7 @@ class Db {
 		dbCon.org_query = dbCon.query;
 
 		dbCon.query = async (sql, dbFields, options) => {
-			const logPrefix = topLogPrefix + 'getConnection() - query() - ';
+			const logPrefix = topLogPrefix + 'getConnection() - query() - connectionId: ' + dbCon.connection.connectionId + ' - ';
 
 			options = options || {};
 
@@ -168,19 +168,7 @@ class Db {
 				options.ignoreLongQueryWarning = true;
 			}
 
-			if (!dbFields) dbFields = [];
-
-			// Convert datetimes to UTC
-			if (Array.isArray(dbFields)) {
-				for (let i = 0; dbFields[i] !== undefined; i++) {
-					if (typeof dbFields[i] === Date) {
-						const dbField = dbFields[i];
-						dbField = dbField.toISOString();
-						dbField[10] = ' '; // Replace T with a space
-						dbField = dbField.substring(0, dbField.length - 1); // Cut the last Z off
-					}
-				}
-			}
+			dbFields = this.formatDbFields(dbFields);
 
 			const startTime = process.hrtime();
 
@@ -188,9 +176,14 @@ class Db {
 				const [rows, rowFields] = await dbCon.org_query(sql, dbFields);
 				const queryTime = lUtils.hrtimeToMs(startTime, 4);
 
+				// Always log all data modifying queries specifically so they can be fetched later on to replicate a state
+				if (this.isSqlModifyingData(sql)) {
+					this.log.verbose(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+				}
+
 				if (this.options.longQueryTime !== false && this.options.longQueryTime < queryTime && options.ignoreLongQueryWarning !== true) {
 					this.log.warn(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
-				} else {
+				} else if (sql.toUpperCase().startsWith('SELECT')) {
 					this.log.debug(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
 				}
 
@@ -289,7 +282,52 @@ class Db {
 	}
 
 	streamQuery(sql, dbFields) {
+		const logPrefix = topLogPrefix + 'streamQuery() - connectionId: x - ';
+		const { log } = this;
+
+		dbFields = this.formatDbFields(dbFields);
+
+		// Always log all data modifying queries specifically so they can be fetched later on to replicate a state
+		if (this.isSqlModifyingData(sql)) {
+			log.verbose(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
+		} else if (sql.toUpperCase().startsWith('SELECT')) {
+			log.debug(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
+		}
+
 		return this.poolSync.query(sql, dbFields);
+	}
+
+	formatDbFields(dbFields) {
+		if (!dbFields) dbFields = [];
+
+		if (dbFields && !Array.isArray(dbFields)) {
+			dbFields = [dbFields];
+		}
+
+		// Convert datetimes to UTC
+		if (Array.isArray(dbFields)) {
+			for (let i = 0; dbFields[i] !== undefined; i++) {
+				if (typeof dbFields[i] === Date) {
+					const dbField = dbFields[i];
+					dbField = dbField.toISOString();
+					dbField[10] = ' '; // Replace T with a space
+					dbField = dbField.substring(0, dbField.length - 1); // Cut the last Z off
+				}
+			}
+		}
+
+		return dbFields;
+	}
+
+	isSqlModifyingData(sql) {
+		if (
+			sql.toUpperCase().startsWith('SELECT')
+			|| sql.toUpperCase().startsWith('SHOW')
+		) {
+			return false;
+		} else {
+			return true;
+		}
 	}
 }
 
