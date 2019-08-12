@@ -4,7 +4,7 @@ import { Pool, DbInitOptions, DbOptions } from './models.d';
 import { Driver as DriverMySQL } from './drivers/mysql';
 // import { Driver as DriverPostgres } from './drivers/postgres';
 
-const topLogPrefix = 'larvitdb: index.js: ';
+const topLogPrefix = 'larvitdb: index.ts: ';
 const lUtils = new Utils();
 
 class Db {
@@ -66,7 +66,7 @@ class Db {
 	 * @return {promise} - resolves if connected
 	 */
 	public async connect(): Promise<void> {
-		this.dbCon = this.options.driver.connect(this.options.connectOptions);
+		this.dbCon = await this.options.driver.connect(this.options.connectOptions);
 
 		this.dbIsReady = true;
 		this.eventEmitter.emit('dbIsReady');
@@ -77,13 +77,13 @@ class Db {
 	 *
 	 * @returns {promise} Promise object that resolves to a connection
 	 */
-	async getConnection() {
+	public async getConnection() {
 		const logPrefix = topLogPrefix + 'getConnection() - ';
 
 		await this.ready();
 
 		if (this.pool === undefined) {
-			const err = new Error('No pool configured. sql: "' + sql + '" dbFields: ' + JSON.stringify(dbFields));
+			const err = new Error('No pool configured.');
 			this.log.error(logPrefix + err.message);
 			throw err;
 		}
