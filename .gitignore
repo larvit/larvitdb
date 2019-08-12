@@ -1,4 +1,5 @@
 .nyc_output
+build
 config/db_test.json
 coverage
 node_modules

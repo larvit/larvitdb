@@ -20,20 +20,23 @@ The module must first be required and then configured.
 Make this in your main application file:
 
 ```javascript
-const Db = require('larvitdb');
+const { Db, DriverMySQL, DriverPostgres } = require('larvitdb');
+
 const db = new Db({
-	host:              '127.0.0.1',                   // Do not use with socketPath
-	socketPath:        '/var/run/mysqld/mysqld.sock', // Do not use with host
-	connectionLimit:   10,                            // Connections in the pool
-	user:              'foo',
-	password:          'bar',
-	charset:           'utf8_general_ci',
-	supportBigNumbers: true,
-	database:          'my_database_name',
-	log:               log                            // Logging object. Will default to a simple console logger if not provided
-	// See list of native options [here](https://github.com/felixge/node-mysql/#connection-options).
-});
-```
+	driver: DriverMySQL,
+	log:    log            // Logging object. Will default to a simple console logger if not provided
+	connectOptions: { // Different for each driver
+		// See list of native options for mariadb/mysql [here](https://github.com/felixge/node-mysql/#connection-options).
+		host:              '127.0.0.1',                   // Do not use with socketPath
+		socketPath:        '/var/run/mysqld/mysqld.sock', // Do not use with host
+		connectionLimit:   10,                            // Connections in the pool
+		user:              'foo',
+		password:          'bar',
+		charset:           'utf8_general_ci',
+		supportBigNumbers: true,
+		database:          'my_database_name',
+	}
+})
 
 ### Important about time zones!
 
@@ -117,19 +120,22 @@ stream.on('end', () => {
 });
 ```
 
-## Advanced configuration - recoverable errors
+## Advanced configuration for MySQL/MariaDB - recoverable errors
 
 Sometimes recoverable errors happend in the database. One such example is deadlocks. Here we'll provide an example of how to make the database layer retry a query 5 times if a deadlock happends, before giving up.
 
 ```javascript
-const Db = require('larvitdb');
+const { Db, DriverMySQL } = require('larvitdb');
 const db = new Db({
-	socketPath:        '/var/run/mysqld/mysqld.sock',
-	user:              'foo',
-	password:          'bar',
-	database:          'my_database_name',
-	retries:           5,                                               // Defaults to 3 if omitted
-	recoverableErrors: ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'] // What error codes to retry, these are the defaults
+	driver: DriverMySQL,
+	connectOptions: {
+		socketPath:        '/var/run/mysqld/mysqld.sock',
+		user:              'foo',
+		password:          'bar',
+		database:          'my_database_name',
+		retries:           5,                                               // Defaults to 3 if omitted
+		recoverableErrors: ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'] // What error codes to retry, these are the defaults
+	}
 });
 
 // If this query fails with a deadlock, it will be retried up to 5 times.
@@ -145,7 +151,10 @@ By default a warning is logged if a query runs longer than 10k ms (10 seconds). 
 ```javascript
 const db = new Db({
 	...
-	longQueryTime: 20000
+	longQueryTime: 20000,
+	connectOptions: {
+		...
+	}
 });
 ```
 
@@ -154,7 +163,10 @@ or like this to disable the warnings:
 ```javascript
 const db = new Db({
 	...
-	longQueryTime: false
+	longQueryTime: false,
+	connectOptions: {
+		...
+	}
 });
 ```
 
@@ -169,6 +181,12 @@ await db.removeAllTables();
 ```
 
 ## Version history
+
+### 4.0.0
+* Rewrote all source code to TypeScript
+* Changed require structure (mostly due to the TypeScript dependency)
+* Added support for different database drivers
+* Added driver for PostgreSQL
 
 ### 3.1.0
 * Added verbose level logging of data changing SQL queries
