@@ -7,7 +7,7 @@
     "test": "test"
   },
   "dependencies": {
-    "larvitutils": "2.3.3",
+    "larvitutils": "4.0.2",
     "mysql2": "1.7.0"
   },
   "devDependencies": {
