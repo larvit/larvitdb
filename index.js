@@ -37,6 +37,11 @@ class Db {
 			this.options.longQueryTime = 10000;
 		}
 
+		// Default to verbose log level for queries that change data
+		if (this.options.dataChangeLogLevel === undefined) {
+			this.options.dataChangeLogLevel = 'verbose';
+		}
+
 		this.log = this.options.log;
 
 		this.eventEmitter = new events.EventEmitter();
@@ -178,7 +183,7 @@ class Db {
 
 				// Always log all data modifying queries specifically so they can be fetched later on to replicate a state
 				if (this.isSqlModifyingData(sql)) {
-					this.log.verbose(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
+					this.log[this.options.dataChangeLogLevel](logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields) + ' in ' + queryTime + 'ms');
 				}
 
 				if (this.options.longQueryTime !== false && this.options.longQueryTime < queryTime && options.ignoreLongQueryWarning !== true) {
@@ -289,7 +294,7 @@ class Db {
 
 		// Always log all data modifying queries specifically so they can be fetched later on to replicate a state
 		if (this.isSqlModifyingData(sql)) {
-			log.verbose(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
+			log[this.options.dataChangeLogLevel](logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
 		} else if (sql.toUpperCase().startsWith('SELECT')) {
 			log.debug(logPrefix + 'Ran SQL: "' + sql + '" with dbFields: ' + JSON.stringify(dbFields));
 		}

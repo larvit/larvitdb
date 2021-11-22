@@ -22,16 +22,17 @@ Make this in your main application file:
 ```javascript
 const Db = require('larvitdb');
 const db = new Db({
-	host:              '127.0.0.1',                   // Do not use with socketPath
-	socketPath:        '/var/run/mysqld/mysqld.sock', // Do not use with host
-	connectionLimit:   10,                            // Connections in the pool
-	user:              'foo',
-	password:          'bar',
-	charset:           'utf8_general_ci',
-	supportBigNumbers: true,
-	database:          'my_database_name',
-	log:               log                            // Logging object. Will default to a simple console logger if not provided
-	// See list of native options [here](https://github.com/felixge/node-mysql/#connection-options).
+    host:               '127.0.0.1',                   // Do not use with socketPath
+    socketPath:         '/var/run/mysqld/mysqld.sock', // Do not use with host
+    connectionLimit:    10,                            // Connections in the pool
+    user:               'foo',
+    password:           'bar',
+    charset:            'utf8_general_ci',
+    supportBigNumbers:  true,
+    database:           'my_database_name',
+    log:                log,                           // Logging object. Will default to a simple console logger if not provided
+    dataChangeLogLevel: 'debug',                      // Valid log level, levels in default provided logger: [info, verbose, debug, warning, error]. Defaults to 'verbose'.
+    // See list of native options [here](https://github.com/felixge/node-mysql/#connection-options).
 });
 ```
 
@@ -101,19 +102,19 @@ When working with big data sets, you do not want to load it all into memory befo
 const stream = db.streamQuery('SELECT * FROM bigAssTable');
 
 stream.on('fields', fields => {
-	console.log('Array with field names that will be returned');
+    console.log('Array with field names that will be returned');
 });
 
 stream.on('result', row => {
-	console.log('Handle row');
+    console.log('Handle row');
 });
 
 stream.on('error', err => {
-	throw err;
+    throw err;
 });
 
 stream.on('end', () => {
-	console.log('No more rows will come');
+    console.log('No more rows will come');
 });
 ```
 
@@ -124,12 +125,12 @@ Sometimes recoverable errors happend in the database. One such example is deadlo
 ```javascript
 const Db = require('larvitdb');
 const db = new Db({
-	socketPath:        '/var/run/mysqld/mysqld.sock',
-	user:              'foo',
-	password:          'bar',
-	database:          'my_database_name',
-	retries:           5,                                               // Defaults to 3 if omitted
-	recoverableErrors: ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'] // What error codes to retry, these are the defaults
+    socketPath:        '/var/run/mysqld/mysqld.sock',
+    user:              'foo',
+    password:          'bar',
+    database:          'my_database_name',
+    retries:           5,                                               // Defaults to 3 if omitted
+    recoverableErrors: ['PROTOCOL_CONNECTION_LOST', 'ER_LOCK_DEADLOCK'] // What error codes to retry, these are the defaults
 });
 
 // If this query fails with a deadlock, it will be retried up to 5 times.
@@ -144,8 +145,8 @@ By default a warning is logged if a query runs longer than 10k ms (10 seconds). 
 
 ```javascript
 const db = new Db({
-	...
-	longQueryTime: 20000
+    ...
+    longQueryTime: 20000
 });
 ```
 
@@ -153,8 +154,8 @@ or like this to disable the warnings:
 
 ```javascript
 const db = new Db({
-	...
-	longQueryTime: false
+    ...
+    longQueryTime: false
 });
 ```
 
@@ -169,6 +170,9 @@ await db.removeAllTables();
 ```
 
 ## Version history
+
+### 3.2.0
+* Added option for log level logging of data changing SQL queries
 
 ### 3.1.0
 * Added verbose level logging of data changing SQL queries

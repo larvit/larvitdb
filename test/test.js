@@ -4,7 +4,7 @@ const assert = require('assert');
 const LUtils = require('larvitutils');
 const lUtils = new LUtils();
 const test = require('tape');
-const log = new lUtils.Log('warn');
+const log = new lUtils.Log('info');
 const Db = require('../index.js');
 const fs = require('fs');
 
@@ -33,15 +33,11 @@ async function dbTests(dbCon) {
 	await dbCon.query('DROP TABLE fjant');
 }
 
-test('Setup db and do checks', t => {
-	let confFile;
+async function setup(options) {
+	options = options || {};
+	options.log = options.log || log;
 
-	async function checkEmptyDb() {
-		const { rows } = await db.query('SHOW TABLES');
-		if (rows.length) throw new Error('Database is not empty. To make a test, you must supply an empty database!');
-
-		t.end();
-	}
+	let dbInstance;
 
 	async function runDbSetup(confFile) {
 		let conf;
@@ -49,13 +45,16 @@ test('Setup db and do checks', t => {
 		log.verbose('DB config: ' + JSON.stringify(require(confFile)));
 
 		conf = require(confFile);
-		conf.log = log;
 
-		db = new Db(conf);
-		await db.ready();
-		await checkEmptyDb();
+		for (const option in options) {
+			conf[option] = options[option];
+		}
+
+		dbInstance = new Db(conf);
+		await dbInstance.ready();
 	}
 
+	let confFile;
 	if (process.env.TRAVIS) {
 		confFile = __dirname + '/../config/db_travis.json';
 	} else if (process.env.CONFFILE) {
@@ -66,21 +65,39 @@ test('Setup db and do checks', t => {
 
 	log.verbose('DB config file: "' + confFile + '"');
 
-	fs.stat(confFile, err => {
-		const altConfFile = __dirname + '/../config/' + confFile;
+	return new Promise((res, rej) => {
+		fs.stat(confFile, async (err) => {
+			if (err) {
+				const altConfFile = __dirname + '/../config/' + confFile;
 
-		if (err) {
-			log.info('Failed to find config file "' + confFile + '", retrying with "' + altConfFile + '"');
+				log.info('Failed to find config file "' + confFile + '", retrying with "' + altConfFile + '"');
 
-			fs.stat(altConfFile, err => {
-				if (err) throw err;
+				fs.stat(altConfFile, async (err) => {
+					if (err) return rej(err);
 
-				runDbSetup(altConfFile);
-			});
-		} else {
-			runDbSetup(confFile);
-		}
+					await runDbSetup(altConfFile);
+
+					return res(dbInstance);
+				});
+			} else {
+				await runDbSetup(confFile);
+
+				return res(dbInstance);
+			}
+		});
 	});
+}
+
+test('Setup db and do checks', async (t) => {
+	async function checkEmptyDb() {
+		const { rows } = await db.query('SHOW TABLES');
+		if (rows.length) throw new Error('Database is not empty. To make a test, you must supply an empty database!');
+	}
+
+	db = await setup();
+	await db.removeAllTables();
+	await checkEmptyDb();
+	t.end();
 });
 
 
@@ -165,8 +182,6 @@ test('Stream rows', async (t) => {
 		assert.strictEqual(rowNr, 3);
 		dbCon.release();
 
-		await db.removeAllTables();
-
 		t.end();
 	});
 });
@@ -198,6 +213,26 @@ test('Time zone dependent data', async (t) => {
 
 	// Remove table
 	await db.query('DROP TABLE tzstuff;');
+	t.end();
+});
+
+test('Configure data change log level', async (t) => {
+	let loggedDebugStr = '';
+	const specialLogger = {
+		error: str => console.log(str),
+		warn: str => console.log(str),
+		info: str => console.log(str),
+		verbose: str => console.log(str),
+		debug: str => console.log(str),
+		silly: str => console.log(str),
+		specialDebug: str => loggedDebugStr = str
+	};
+	const dbInstance = await setup({log: specialLogger, dataChangeLogLevel: 'specialDebug'});
+
+	await dbInstance.query('CREATE TABLE logTestTable (id int(11));');
+	await dbInstance.query('INSERT INTO logTestTable VALUES(?);', [1]);
+
+	t.ok(loggedDebugStr.includes('Ran SQL: "INSERT INTO logTestTable VALUES(?);" with dbFields: [1] in '));
 	t.end();
 });
 
