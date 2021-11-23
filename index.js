@@ -2,7 +2,7 @@
 
 const topLogPrefix = 'larvitdb: index.js: ';
 const LUtils = require('larvitutils');
-const lUtils = new LUtils();
+const lUtils = new LUtils.Utils();
 const mysql = require('mysql2/promise');
 const mysqlSync = require('mysql2');
 const events = require('events');
@@ -20,7 +20,7 @@ class Db {
 
 		this.options = options;
 
-		if (!this.options.log) this.options.log = new lUtils.Log('info');
+		if (!this.options.log) this.options.log = new LUtils.Log('info');
 
 		// Default to 3 retries on recoverable errors
 		if (this.options.retries === undefined) {
@@ -43,6 +43,10 @@ class Db {
 		}
 
 		this.log = this.options.log;
+
+		if (typeof this.log[this.options.dataChangeLogLevel] !== 'function') {
+			throw new Error(`this.log[${this.options.dataChangeLogLevel}] is not a function`);
+		}
 
 		this.eventEmitter = new events.EventEmitter();
 

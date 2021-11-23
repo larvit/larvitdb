@@ -1,10 +1,8 @@
 'use strict';
 
-const assert = require('assert');
 const LUtils = require('larvitutils');
-const lUtils = new LUtils();
 const test = require('tape');
-const log = new lUtils.Log('info');
+const log = new LUtils.Log('info');
 const Db = require('../index.js');
 const fs = require('fs');
 
@@ -12,23 +10,23 @@ let db;
 
 Error.stackTraceLimit = 10;
 
-async function dbTests(dbCon) {
+async function dbTests(dbCon, t) {
 	await dbCon.query('CREATE TABLE `fjant` (`test` int NOT NULL) ENGINE=\'InnoDB\';');
 	await dbCon.query('INSERT INTO `fjant` VALUES(13);');
 
 	const testFromFjant = await dbCon.query('SELECT test FROM fjant');
 
-	assert.strictEqual(testFromFjant.rows.length, 1);
-	assert.strictEqual(testFromFjant.rows[0].test, 13);
+	t.strictEqual(testFromFjant.rows.length, 1);
+	t.strictEqual(testFromFjant.rows[0].test, 13);
 
 	await dbCon.query('UPDATE fjant SET test = ?', 7);
 	const testFromFjantAgain = await dbCon.query('SELECT test FROM fjant');
-	assert.strictEqual(testFromFjantAgain.rows.length, 1);
-	assert.strictEqual(testFromFjantAgain.rows[0].test, 7);
+	t.strictEqual(testFromFjantAgain.rows.length, 1);
+	t.strictEqual(testFromFjantAgain.rows[0].test, 7);
 
 	await dbCon.query('DELETE FROM fjant');
 	const testFromFjantLast = await dbCon.query('SELECT test FROM fjant');
-	assert.strictEqual(testFromFjantLast.rows.length, 0);
+	t.strictEqual(testFromFjantLast.rows.length, 0);
 
 	await dbCon.query('DROP TABLE fjant');
 }
@@ -37,21 +35,24 @@ async function setup(options) {
 	options = options || {};
 	options.log = options.log || log;
 
-	let dbInstance;
-
 	async function runDbSetup(confFile) {
 		let conf;
 
 		log.verbose('DB config: ' + JSON.stringify(require(confFile)));
 
 		conf = require(confFile);
+		const dbOptions = {
+			...conf
+		};
 
 		for (const option in options) {
-			conf[option] = options[option];
+			dbOptions[option] = options[option];
 		}
 
-		dbInstance = new Db(conf);
+		const dbInstance = new Db(dbOptions);
 		await dbInstance.ready();
+
+		return dbInstance;
 	}
 
 	let confFile;
@@ -75,14 +76,22 @@ async function setup(options) {
 				fs.stat(altConfFile, async (err) => {
 					if (err) return rej(err);
 
-					await runDbSetup(altConfFile);
+					try {
+						const dbInstance = await runDbSetup(altConfFile);
 
-					return res(dbInstance);
+						return res(dbInstance);
+					} catch (err) {
+						return rej(err);
+					}
 				});
 			} else {
-				await runDbSetup(confFile);
+				try {
+					const dbInstance = await runDbSetup(confFile);
 
-				return res(dbInstance);
+					return res(dbInstance);
+				} catch (err) {
+					return rej(err);
+				}
 			}
 		});
 	});
@@ -100,15 +109,14 @@ test('Setup db and do checks', async (t) => {
 	t.end();
 });
 
-
 test('Simple queries', async (t) => {
-	await dbTests(db);
+	await dbTests(db, t);
 	t.end();
 });
 
 test('Queries on a single connection from the pool', async (t) => {
 	const dbCon = await db.getConnection();
-	await dbTests(dbCon);
+	await dbTests(dbCon, t);
 	t.end();
 });
 
@@ -133,57 +141,8 @@ test('Remove all tables from database', async (t) => {
 
 	// Check so no tables exists
 	const result = await db.query('SHOW TABLES');
-	assert.strictEqual(result.rows.length, 0);
+	t.strictEqual(result.rows.length, 0);
 	t.end();
-});
-
-test('Stream rows', async (t) => {
-	let rowNr = 0;
-
-	// Create table with data
-	await db.query('CREATE TABLE `plutt` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `name` varchar(191) NOT NULL);');
-	await db.query('INSERT INTO plutt (name) VALUES(\'bosse\'),(\'hasse\'),(\'vråkbert\');');
-
-	// Get dbCon
-	const dbCon = await db.getConnection();
-
-	// Check contents
-	const query = db.streamQuery('SELECT * FROM plutt');
-
-	query.on('error', err => {
-		throw err;
-	});
-
-	query.on('fields', fields => {
-		assert.strictEqual(fields[0].name, 'id');
-		assert.strictEqual(fields[1].name, 'name');
-	});
-
-	query.on('result', row => {
-		dbCon.pause(); // Pause streaming while handling row
-
-		rowNr++;
-
-		if (rowNr === 1) {
-			assert.strictEqual(row.id, 1);
-			assert.strictEqual(row.name, 'bosse');
-		} else if (rowNr === 2) {
-			assert.strictEqual(row.id, 2);
-			assert.strictEqual(row.name, 'hasse');
-		} else if (rowNr === 2) {
-			assert.strictEqual(row.id, 3);
-			assert.strictEqual(row.name, 'vråkbert');
-		}
-
-		dbCon.resume(); // Resume streaming when processing of row is done (this is normally done in async, doh)
-	});
-
-	query.on('end', async () => {
-		assert.strictEqual(rowNr, 3);
-		dbCon.release();
-
-		t.end();
-	});
 });
 
 test('Time zone dependent data', async (t) => {
@@ -204,15 +163,71 @@ test('Time zone dependent data', async (t) => {
 
 		if (row.id === 1) {
 			foundRows++;
-			assert.strictEqual(row.tzstamp.toISOString(), '2018-03-04T17:38:20.000Z');
-			assert.strictEqual(row.tzdatetime.toISOString(), '2018-03-04T17:38:20.000Z');
+			t.strictEqual(row.tzstamp.toISOString(), '2018-03-04T17:38:20.000Z');
+			t.strictEqual(row.tzdatetime.toISOString(), '2018-03-04T17:38:20.000Z');
 		}
 	}
 
-	assert.strictEqual(foundRows, 1);
+	t.strictEqual(foundRows, 1);
 
 	// Remove table
 	await db.query('DROP TABLE tzstuff;');
+	t.end();
+});
+
+test('Stream rows', async (t) => {
+	let rowNr = 0;
+
+	// Create table with data
+	await db.query('CREATE TABLE `plutt` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `name` varchar(191) NOT NULL);');
+	await db.query('INSERT INTO plutt (name) VALUES(\'bosse\'),(\'hasse\'),(\'vråkbert\');');
+
+	// Get dbCon
+	const dbCon = await db.getConnection();
+
+	// Check contents
+	const query = db.streamQuery('SELECT * FROM plutt');
+
+	async function handleStream(query) {
+		return new Promise((res, rej) => {
+			query.on('error', err => {
+				rej(err);
+			});
+
+			query.on('fields', fields => {
+				t.strictEqual(fields[0].name, 'id');
+				t.strictEqual(fields[1].name, 'name');
+			});
+
+			query.on('result', row => {
+				dbCon.pause(); // Pause streaming while handling row
+
+				rowNr++;
+
+				if (rowNr === 1) {
+					t.strictEqual(row.id, 1);
+					t.strictEqual(row.name, 'bosse');
+				} else if (rowNr === 2) {
+					t.strictEqual(row.id, 2);
+					t.strictEqual(row.name, 'hasse');
+				} else if (rowNr === 2) {
+					t.strictEqual(row.id, 3);
+					t.strictEqual(row.name, 'vråkbert');
+				}
+
+				dbCon.resume(); // Resume streaming when processing of row is done (this is normally done in async, doh)
+			});
+
+			query.on('end', async () => {
+				t.strictEqual(rowNr, 3);
+				dbCon.release();
+
+				res();
+			});
+		});
+	}
+
+	await handleStream(query);
 	t.end();
 });
 
@@ -233,6 +248,21 @@ test('Configure data change log level', async (t) => {
 	await dbInstance.query('INSERT INTO logTestTable VALUES(?);', [1]);
 
 	t.ok(loggedDebugStr.includes('Ran SQL: "INSERT INTO logTestTable VALUES(?);" with dbFields: [1] in '));
+	t.end();
+});
+
+test('Configure data change log level with invalid logger should throw', async (t) => {
+	const specialLogger = {
+		error: str => console.log(str)
+	};
+
+	try {
+		await setup({log: specialLogger, dataChangeLogLevel: 'nonExistingLogFunction'});
+		t.fail('Did not get expected exception');
+	} catch (err) {
+		t.ok(true, 'Got expected exception: ' + err.message);
+	}
+
 	t.end();
 });
 

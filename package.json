@@ -7,18 +7,17 @@
     "test": "test"
   },
   "dependencies": {
-    "larvitutils": "2.3.3",
-    "mysql2": "1.7.0"
+    "larvitutils": "5.0.0",
+    "mysql2": "2.3.3"
   },
   "devDependencies": {
-    "coveralls": "3.0.11",
-    "eslint": "6.8.0",
-    "nyc": "14.1.1",
-    "tape": "4.13.2",
-    "tape-eslint": "1.2.1"
+    "eslint": "8.3.0",
+    "nyc": "15.1.0",
+    "tape": "5.3.2"
   },
   "scripts": {
-    "test": "npx tape test/*"
+    "lint": "eslint *.js test/*.js",
+    "test": "npm run lint && nyc tape test/*"
   },
   "repository": {
     "type": "git",
