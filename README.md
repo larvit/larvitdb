@@ -1,6 +1,4 @@
-[![Build Status](https://travis-ci.org/larvit/larvitdb.svg)](https://travis-ci.org/larvit/larvitdb)
-[![Dependencies](https://david-dm.org/larvit/larvitdb.svg)](https://david-dm.org/larvit/larvitdb.svg)
-[![Coverage Status](https://coveralls.io/repos/github/larvit/larvitdb/badge.svg)](https://coveralls.io/github/larvit/larvitdb)
+[![Build Status](https://github.com/larvit/larvitdb/actions/workflows/ci.yml/badge.svg)](https://github.com/larvit/larvitdb/actions)
 
 # larvitdb
 
