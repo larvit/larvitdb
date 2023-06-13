@@ -128,8 +128,10 @@ class Db {
 		// Start a sync pool (only to use with streaming API for now)
 		this.poolSync = mysqlSync.createPool(this.dbConf);
 
-		// Set timezone
-		await this.pool.query('SET time_zone = \'+00:00\';');
+		// Set timezone for all pool connections
+		this.pool.on('connection', async connection => {
+			connection.query('SET time_zone = \'+00:00\';');
+		});
 
 		// Make connection test to database
 		const [rows] = await this.pool.query('SELECT 1');
