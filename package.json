@@ -1,19 +1,19 @@
 {
   "name": "larvitdb",
-  "version": "3.2.57",
+  "version": "3.2.58",
   "description": "DB wrapper module for node.js",
   "main": "index.js",
   "directories": {
     "test": "test"
   },
   "dependencies": {
-    "larvitutils": "5.1.52",
+    "larvitutils": "5.1.53",
     "mysql2": "3.6.1"
   },
   "devDependencies": {
-    "eslint": "8.49.0",
+    "eslint": "8.50.0",
     "nyc": "15.1.0",
-    "tape": "5.6.6"
+    "tape": "5.7.0"
   },
   "scripts": {
     "lint": "eslint *.js test/*.js",
