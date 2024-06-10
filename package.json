@@ -1,6 +1,6 @@
 {
   "name": "larvitdb",
-  "version": "3.2.88",
+  "version": "3.2.89",
   "description": "DB wrapper module for node.js",
   "main": "index.js",
   "directories": {
@@ -12,7 +12,7 @@
   },
   "devDependencies": {
     "eslint": "8.57.0",
-    "nyc": "15.1.0",
+    "nyc": "17.0.0",
     "tape": "5.7.5"
   },
   "scripts": {
