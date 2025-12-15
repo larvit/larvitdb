@@ -1,13 +1,13 @@
 {
   "name": "larvitdb",
-  "version": "3.2.139",
+  "version": "3.2.140",
   "description": "DB wrapper module for node.js",
   "main": "index.js",
   "directories": {
     "test": "test"
   },
   "dependencies": {
-    "larvitutils": "5.1.172",
+    "larvitutils": "5.1.173",
     "mysql2": "3.9.3"
   },
   "devDependencies": {
